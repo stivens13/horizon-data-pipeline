@@ -1,13 +1,32 @@
-version: '3.8'
 services:
+#  etl:
+#    build:
+#      context: .
+#      dockerfile: Dockerfile
+#    network_mode: service:clickhouse
+#    command: sleep infinity
   clickhouse:
-    image: 'clickhouse/clickhouse-server:${CHVER:-latest}'
-    user: '101:101'
+    image: 'clickhouse/clickhouse-server:24.6.2.17-alpine'
+#    user: '101:101'
     container_name: clickhouse
-    hostname: clickhouse
-    volumes:
-      - ${PWD}/fs/volumes/clickhouse/etc/clickhouse-server/config.d/config.xml:/etc/clickhouse-server/config.d/config.xml
-      - ${PWD}/fs/volumes/clickhouse/etc/clickhouse-server/users.d/users.xml:/etc/clickhouse-server/users.d/users.xml
+#    hostname: clickhouse
+#    volumes:
+#      - ${PWD}/fs/volumes/clickhouse/etc/clickhouse-server/config.d:/etc/clickhouse-server/config.d
+#      - ${PWD}/fs/volumes/clickhouse/etc/clickhouse-server/users.d:/etc/clickhouse-server/users.d
+#      - ${PWD}/fs/volumes/clickhouse/etc/clickhouse-server:/etc/clickhouse-server
+#      - ${PWD}/fs/errors:/var/log/clickhouse-server
     ports:
-      - '127.0.0.1:8123:8123'
-      - '127.0.0.1:9000:9000'
+      - '8123:8123'
+      - '9000:9000'
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 262144
+        hard: 262144
+
+#networks:
+#  default:
+#    name: 'clickhouse-net'
+#    external: true
