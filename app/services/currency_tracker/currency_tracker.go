@@ -2,7 +2,7 @@ package currency_tracker
 
 import (
 	"encoding/json"
-	"github.com/stivens13/horizon-data-pipeline/models"
+	"github.com/stivens13/horizon-data-pipeline/app/services/models"
 	"net/http"
 )
 
