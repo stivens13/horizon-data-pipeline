@@ -1,8 +1,8 @@
 package etl
 
 import (
-	"github.com/stivens13/horizon-data-pipeline/models"
-	"github.com/stivens13/horizon-data-pipeline/services/gcp"
+	"github.com/stivens13/horizon-data-pipeline/app/services/gcp"
+	"github.com/stivens13/horizon-data-pipeline/app/services/models"
 	"github.com/stretchr/testify/suite"
 	"testing"
 )

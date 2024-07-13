@@ -3,9 +3,9 @@ package etl
 import (
 	"fmt"
 	"github.com/gocarina/gocsv"
-	"github.com/stivens13/horizon-data-pipeline/models"
-	"github.com/stivens13/horizon-data-pipeline/services/currency_tracker"
-	"github.com/stivens13/horizon-data-pipeline/services/gcp"
+	"github.com/stivens13/horizon-data-pipeline/app/services/currency_tracker"
+	"github.com/stivens13/horizon-data-pipeline/app/services/gcp"
+	"github.com/stivens13/horizon-data-pipeline/app/services/models"
 	"os"
 	"path"
 	"sort"
