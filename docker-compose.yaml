@@ -1,20 +1,43 @@
 services:
-#  etl:
-#    build:
-#      context: .
-#      dockerfile: Dockerfile
-#    network_mode: service:clickhouse
-#    command: sleep infinity
+  etl:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    network_mode: service:clickhouse
+#    depends_on:
+#      clickhouse:
+#        condition: service_healthy
+    command: sleep infinity
   clickhouse:
-    image: 'clickhouse/clickhouse-server:24.6.2.17-alpine'
+    image: 'clickhouse/clickhouse-server:24.6.2.17'
 #    user: '101:101'
     container_name: clickhouse
-#    hostname: clickhouse
-#    volumes:
-#      - ${PWD}/fs/volumes/clickhouse/etc/clickhouse-server/config.d:/etc/clickhouse-server/config.d
+    hostname: clickhouse
+    volumes:
+#      - ${PWD}/fs/volumes/clickhouse/server:/etc/clickhouse-server
+      - ${PWD}/fs/volumes/clickhouse/etc/clickhouse-server/config.d:/etc/clickhouse-server/config.d
 #      - ${PWD}/fs/volumes/clickhouse/etc/clickhouse-server/users.d:/etc/clickhouse-server/users.d
-#      - ${PWD}/fs/volumes/clickhouse/etc/clickhouse-server:/etc/clickhouse-server
-#      - ${PWD}/fs/errors:/var/log/clickhouse-server
+      - ${PWD}/fs/volumes/clickhouse/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+      - ${PWD}/fs/errors:/var/log/clickhouse-server
+    healthcheck:
+      test: clickhouse-local -q 'select 1;'
+      interval: 2s
+      timeout: 60s
+      retries: 20
+      start_period: 5s
+#    healthcheck:
+#      test: wget --no-verbose --tries=1 http://localhost:8123/ping || exit 1
+    env_file: "clickhouse.env"
+#    environment:
+#      - CLICKHOUSE_DB=analytics
+#      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
+#      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+#      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+#      - SHOW_NAMED_COLLECTIONS=1
+#      - NAMED_COLLECTION_CONTROL=1
+#      - SHOW_NAMED_COLLECTIONS_SECRETS=1
+#      - CLICKHOUSE_ALWAYS_RUN_INITDB_SCRIPTS=true
+#      - CLICKHOUSE_CONFIG=/etc/clickhouse-server/config.xml
     ports:
       - '8123:8123'
       - '9000:9000'
