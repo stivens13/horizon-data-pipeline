@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/martian/v3/log"
-	"github.com/stivens13/horizon-data-pipeline/config"
+	"github.com/stivens13/horizon-data-pipeline/app/config"
 	"io"
 	"os"
 	"time"
