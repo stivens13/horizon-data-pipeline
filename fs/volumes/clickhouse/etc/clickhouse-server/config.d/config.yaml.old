@@ -12,10 +12,11 @@ clickhouse:
     count: 3
 
   display_name: clickhouse_analytics
-  listen_host: 0.0.0.0
-#    - "::"
-#    - "::1"
-#    - "127.0.0.1"
+  listen_host:
+    - 0.0.0.0/0
+    - ::
+    - ::/0
+#    - 127.0.0.1
   http_port: 8123
   tcp_port: 9000
   interserver_http_port: 9009

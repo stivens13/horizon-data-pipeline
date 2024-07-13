@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"github.com/joho/godotenv"
+	"log"
 	"os"
 )
 
@@ -30,6 +32,11 @@ func (ch *ClickhouseConfig) DSN() string {
 }
 
 func InitConfig() *Config {
+	if os.Getenv("CLICKHOUSE_USER") == "" {
+		if err := godotenv.Load("clickhouse.env"); err != nil {
+			log.Fatal("Error loading clickhouse.env file")
+		}
+	}
 	gcp := &GCPStorageClient{}
 
 	return &Config{
@@ -38,7 +45,7 @@ func InitConfig() *Config {
 			User:     os.Getenv("CLICKHOUSE_USER"),
 			Password: os.Getenv("CLICKHOUSE_PASSWORD"),
 			Host:     os.Getenv("CLICKHOUSE_HOST"),
-			Port:     os.Getenv("CLICKHOUSE_PORT"),
+			Port:     os.Getenv("CLICKHOUSE_TCP_PORT"),
 			Database: os.Getenv("CLICKHOUSE_DATABASE"),
 		},
 	}

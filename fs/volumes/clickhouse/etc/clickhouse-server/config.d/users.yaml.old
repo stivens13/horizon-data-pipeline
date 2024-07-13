@@ -38,8 +38,7 @@ clickhouse:
 #        query: grant all on *.* to analytics_user with grant option;
       profile: default
       networks:
-#        host: etl
-        ip: "::/0"
+        ip: 0.0.0.0/0
       quota: default
   quotas:
     default:

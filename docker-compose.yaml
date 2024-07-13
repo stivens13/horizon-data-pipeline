@@ -13,9 +13,9 @@ services:
         condition: service_healthy
 #    command: sleep infinity
   clickhouse:
-    image: 'clickhouse/clickhouse-server:24.6.2.17'
+    image: clickhouse/clickhouse-server:24.6.2.17
     container_name: clickhouse
-#    hostname: clickhouse
+    hostname: clickhouse
     volumes:
       - ${PWD}/fs/volumes/clickhouse/etc/clickhouse-server/config.d:/etc/clickhouse-server/config.d
       - ${PWD}/fs/volumes/clickhouse/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
