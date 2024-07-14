@@ -11,7 +11,7 @@ import (
 type Transaction struct {
 	Timestamp      DateTime `json:"ts"`
 	Event          string   `json:"event"`
-	ProjectID      int      `json:"project_id"`
+	ProjectID      string   `json:"project_id"`
 	CurrencySymbol string   `json:"currency_symbol"`
 	CurrencyValue  float64  `json:"currency_value"`
 }
@@ -21,7 +21,7 @@ type TransactionRaw struct {
 	App              string   `json:"app" csv:"app"`
 	Timestamp        DateTime `json:"ts" csv:"ts"`
 	Event            string   `json:"event" csv:"event"`
-	ProjectID        int      `json:"project_id" csv:"project_id"`
+	ProjectID        string   `json:"project_id" csv:"project_id"`
 	Source           string   `json:"source" csv:"source"`
 	Ident            int      `json:"ident" csv:"ident"`
 	UserID           string   `json:"user_id" csv:"user_id"`

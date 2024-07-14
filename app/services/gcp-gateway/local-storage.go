@@ -1,4 +1,4 @@
-package gcp
+package gcp_gateway
 
 import (
 	"cloud.google.com/go/storage"
@@ -11,11 +11,20 @@ import (
 	"time"
 )
 
+const (
+	gcs_buckets         = "buckets/"
+	daily_trades_bucket = "daily_trades_summary/"
+)
+
 type GCPStorageMock struct {
 	client *config.GCPStorageClient
 }
 
-func (s *GCPStorage) UploadFile(filename string, bucket string) error {
+func NewGCPStorageMock() *GCPStorageMock {
+	return &GCPStorageMock{}
+}
+
+func (s *GCPStorageMock) UploadFile(filename string, bucket string) error {
 	object := filename
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx)
@@ -56,7 +65,7 @@ func (s *GCPStorage) UploadFile(filename string, bucket string) error {
 	return nil
 }
 
-func (s *GCPStorage) ReadFileBytes(bucket, object string) (res []byte, err error) {
+func (s *GCPStorageMock) ReadFileBytes(bucket, object string) (res []byte, err error) {
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx)
 	if err != nil {
@@ -86,7 +95,7 @@ func (s *GCPStorage) ReadFileBytes(bucket, object string) (res []byte, err error
 	return res, nil
 }
 
-func (s *GCPStorage) DownloadFile(bucket, object, destFileName string) error {
+func (s *GCPStorageMock) DownloadFile(bucket, object, destFileName string) error {
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx)
 	if err != nil {

@@ -10,13 +10,11 @@ import (
 	"time"
 )
 
-type ClickhouseAnalytics struct {
+type ClickhouseRepository struct {
 	DB *gorm.DB
 }
 
-func NewClickhouseAnalytics(chConfig *config.ClickhouseConfig) *ClickhouseAnalytics {
-	dsn := chConfig.DSN()
-	fmt.Printf("dsn: %s\n", dsn)
+func NewClickhouseRepository(chConfig *config.ClickhouseConfig) *ClickhouseRepository {
 
 	sqlDB := std_ck.OpenDB(&std_ck.Options{
 		Addr: []string{fmt.Sprintf("%s:%s", chConfig.Host, chConfig.Port)},
@@ -38,9 +36,16 @@ func NewClickhouseAnalytics(chConfig *config.ClickhouseConfig) *ClickhouseAnalyt
 	clickhouseDB, err := gorm.Open(ch_driver.New(
 		ch_driver.Config{Conn: sqlDB}))
 
-	//clickhouseDB, err := gorm.Open(ch_driver.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("failed to establish clickhouse database connection: %v", err)
 	}
-	return &ClickhouseAnalytics{DB: clickhouseDB}
+	return &ClickhouseRepository{DB: clickhouseDB}
+}
+
+func (cr *ClickhouseRepository) UploadDailyTotalVolume(dailyTotalVolume *DailyTotalMarketVolume) error {
+	return fmt.Errorf("not implemented yet")
+}
+
+func (cr *ClickhouseRepository) UploadDailyVolumePerProject(dailyVolumePerProject []*DailyMarketVolumePerProject) error {
+	return fmt.Errorf("not implemented yet")
 }

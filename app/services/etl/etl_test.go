@@ -1,7 +1,6 @@
 package etl
 
 import (
-	"github.com/stivens13/horizon-data-pipeline/app/services/gcp"
 	"github.com/stivens13/horizon-data-pipeline/app/services/models"
 	"github.com/stretchr/testify/suite"
 	"testing"
@@ -49,7 +48,7 @@ func TestETLSuite(t *testing.T) {
 func (s *ETLTestSuite) TestReadData() {
 	filepath := "data/sample_data.csv"
 	type fields struct {
-		GCPStorage *gcp.GCPStorage
+		GCPStorage *gcp_gateway.GCPStorage
 		filepath   string
 	}
 	tests := map[string]struct {
@@ -60,7 +59,7 @@ func (s *ETLTestSuite) TestReadData() {
 		wantErr  bool
 	}{
 		"sample data": {
-			fields:  fields{GCPStorage: &gcp.GCPStorage{}, filepath: filepath},
+			fields:  fields{GCPStorage: &gcp_gateway.GCPStorage{}, filepath: filepath},
 			wantErr: false,
 		},
 	}
@@ -69,7 +68,7 @@ func (s *ETLTestSuite) TestReadData() {
 			e := &ETL{
 				GCPStorage: test.fields.GCPStorage,
 			}
-			gotTxs, err := e.ReadData(test.fields.filepath)
+			gotTxs, err := e.readData(test.fields.filepath)
 			if test.wantErr {
 				s.Require().NoError(err)
 				return
@@ -83,7 +82,7 @@ func (s *ETLTestSuite) TestReadData() {
 func (s *ETLTestSuite) TestTransformData() {
 	filepath := "data/sample_data.csv"
 	type fields struct {
-		GCPStorage *gcp.GCPStorage
+		GCPStorage *gcp_gateway.GCPStorage
 		filepath   string
 	}
 	tests := map[string]struct {
@@ -94,7 +93,7 @@ func (s *ETLTestSuite) TestTransformData() {
 		wantErr  bool
 	}{
 		"sample data": {
-			fields:  fields{GCPStorage: &gcp.GCPStorage{}, filepath: filepath},
+			fields:  fields{GCPStorage: &gcp_gateway.GCPStorage{}, filepath: filepath},
 			wantErr: false,
 		},
 	}
@@ -103,7 +102,7 @@ func (s *ETLTestSuite) TestTransformData() {
 			e := &ETL{
 				GCPStorage: test.fields.GCPStorage,
 			}
-			err := e.TransformTxs()
+			err := e.TransformTxs("")
 			if test.wantErr {
 				s.Require().NoError(err)
 				return

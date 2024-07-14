@@ -1,4 +1,4 @@
-package gcp
+package gcp_gateway
 
 import (
 	"cloud.google.com/go/storage"
