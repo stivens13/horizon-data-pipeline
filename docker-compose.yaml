@@ -1,35 +1,56 @@
 services:
+  gcs:
+    container_name: gcs
+    image: fsouza/fake-gcs-server
+    restart: unless-stopped
+    command: -scheme http -backend filesystem
+    hostname: gcs
+    ports:
+      - "80:80"
+    volumes:
+      - ${PWD}/fs/volumes/gcs:/data
+    healthcheck:
+      test: [ 'CMD-SHELL', 'wget --no-verbose --tries=1 --spider localhost:4443/_internal/healthcheck || exit 1' ]
+      interval: 30s
+      timeout: 20s
+      retries: 3
   etl:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: etl
+    volumes:
+      - ${PWD}:/etl/
     env_file:
     - clickhouse.env
     - .env
-#    hostname: etl
+    hostname: etl
     network_mode: service:clickhouse
     depends_on:
       clickhouse:
         condition: service_healthy
+      gcs:
+        condition: service_healthy
     command: sleep infinity
   clickhouse:
-    image: clickhouse/clickhouse-server:24.6.2.17
+    image: clickhouse/clickhouse-server:24.6.2.17-alpine
     container_name: clickhouse
     hostname: clickhouse
+    env_file: clickhouse.env
+    restart: unless-stopped
+    ports:
+      - '8123:8123'
+      - '9000:9000'
     volumes:
       - ${PWD}/fs/volumes/clickhouse/clickhouse-server:/etc/clickhouse-server/config.d
       - ${PWD}/fs/volumes/clickhouse/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
-      - ${PWD}/fs/errors:/var/log/clickhouse-server
+      - ${PWD}/fs/volumes/clickhouse/errors:/var/log/clickhouse-server
     healthcheck:
       test: clickhouse-local -q 'select 1;'
       interval: 2s
       timeout: 60s
       retries: 20
       start_period: 5s
-    env_file: clickhouse.env
-    ports:
-      - '8123:8123'
-      - '9000:9000'
     ulimits:
       memlock:
         soft: -1
@@ -37,8 +58,3 @@ services:
       nofile:
         soft: 262144
         hard: 262144
-
-#networks:
-#  default:
-#    name: 'clickhouse-net'
-#    external: true
