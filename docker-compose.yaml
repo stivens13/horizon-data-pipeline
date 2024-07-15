@@ -3,10 +3,10 @@ services:
     container_name: gcs
     image: fsouza/fake-gcs-server
     restart: unless-stopped
-    command: -scheme http -backend filesystem
+    command: -scheme http -backend filesystem -port 4443 -public-host gcs:4443 -external-url http://gcs:4443
     hostname: gcs
     ports:
-      - "80:80"
+      - "4443:4443"
     volumes:
       - ${PWD}/fs/volumes/gcs:/data
     healthcheck:
@@ -24,7 +24,7 @@ services:
     env_file:
     - clickhouse.env
     - .env
-    hostname: etl
+#    hostname: etl
     network_mode: service:clickhouse
     depends_on:
       clickhouse:

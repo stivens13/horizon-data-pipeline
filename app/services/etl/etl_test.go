@@ -68,7 +68,7 @@ func (s *ETLTestSuite) TestReadData() {
 			e := &ETL{
 				GCPStorage: test.fields.GCPStorage,
 			}
-			gotTxs, err := e.readData(test.fields.filepath)
+			gotTxs, err := e.readDataFromFile(test.fields.filepath)
 			if test.wantErr {
 				s.Require().NoError(err)
 				return

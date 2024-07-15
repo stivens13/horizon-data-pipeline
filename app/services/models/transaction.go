@@ -70,7 +70,13 @@ func (p *Props) MarshalCSV() (string, error) {
 }
 
 func (p *Props) String() string {
-	return fmt.Sprintf("%+v\n", p)
+	b, err := json.Marshal(p)
+	if err != nil {
+		fmt.Printf("Error: %s", err)
+		return ""
+	}
+	return string(b)
+	//return fmt.Sprintf("%+v\n", p)
 }
 
 // UnmarshalCSV converts the CSV string as internal date
@@ -97,7 +103,12 @@ func (n *Nums) MarshalCSV() (string, error) {
 }
 
 func (n *Nums) String() string {
-	return fmt.Sprintf("%+v\n", n)
+	b, err := json.Marshal(n)
+	if err != nil {
+		fmt.Printf("Error: %s", err)
+		return ""
+	}
+	return string(b)
 }
 
 // UnmarshalCSV converts the CSV string as internal date
@@ -105,15 +116,5 @@ func (n *Nums) UnmarshalCSV(csv string) (err error) {
 	if err := json.Unmarshal([]byte(csv), n); err != nil {
 		return fmt.Errorf("could not unmarshal nums; %w", err)
 	}
-	//if n.CurrencyValueDecimalFloat, err = strconv.ParseFloat(n.CurrencyValueDecimal, 64); err != nil {
-	//	fmt.Print(csv)
-	//	return fmt.Errorf("could not convert CurrencyValueDecimal - '%s' to float64; %w", n.CurrencyValueDecimal, err)
-	//}
-	//if n.CurrencyValueRaw, err = strconv.ParseFloat(n.CurrencyValueRawString, 64); err != nil {
-	//	return fmt.Errorf("could not convert CurrencyValueRawString - '%s' to float64; %w", n.CurrencyValueRawString, err)
-	//}
-	//if n.AdditionalNums, err = strconv.ParseFloat(n.AdditionalNumsString, 64); err != nil {
-	//	return fmt.Errorf("could not convert AdditionalNumsString - '%s' to float64; %w", n.AdditionalNumsString, err)
-	//}
 	return nil
 }

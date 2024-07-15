@@ -42,10 +42,13 @@ func NewClickhouseRepository(chConfig *config.ClickhouseConfig) *ClickhouseRepos
 	return &ClickhouseRepository{DB: clickhouseDB}
 }
 
-func (cr *ClickhouseRepository) UploadDailyTotalVolume(dailyTotalVolume *DailyTotalMarketVolume) error {
-	return fmt.Errorf("not implemented yet")
+func (cr *ClickhouseRepository) CreateDailyTotalVolume(dailyTotalVolume *DailyTotalMarketVolume) error {
+	if err := cr.DB.Create(&dailyTotalVolume).Error; err != nil {
+		return fmt.Errorf("failed to create Daily Total Volume: %v", err)
+	}
+	return nil
 }
 
-func (cr *ClickhouseRepository) UploadDailyVolumePerProject(dailyVolumePerProject []*DailyMarketVolumePerProject) error {
+func (cr *ClickhouseRepository) CreateDailyVolumePerProject(dailyVolumePerProject []*DailyMarketVolumePerProject) error {
 	return fmt.Errorf("not implemented yet")
 }

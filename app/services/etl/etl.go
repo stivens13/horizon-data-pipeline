@@ -9,27 +9,26 @@ import (
 	gcp_gateway "github.com/stivens13/horizon-data-pipeline/app/services/gcp-gateway"
 	"github.com/stivens13/horizon-data-pipeline/app/services/models"
 	"os"
-	"path"
 )
 
 type ETL struct {
-	GCPStorage *gcp_gateway.Storage
+	GCPStorage gcp_gateway.Storage
 	Clickhouse *cha.ClickhouseRepository
 	//CurrencyTracker *currency
 }
 
 func NewETL(gcpStorage gcp_gateway.Storage, clickhouseClient *cha.ClickhouseRepository) *ETL {
 	return &ETL{
-		GCPStorage: &gcpStorage,
+		GCPStorage: gcpStorage,
 		Clickhouse: clickhouseClient,
 	}
 }
 
 var (
-	filename      = "sample_data.csv"
-	bucket        = ""
-	localDataDir  = "data/"
-	localFilepath = path.Join(localDataDir, filename)
+// filename      = "sample_data.csv"
+// bucket        = ""
+// localDataDir  = "data/"
+// localFilepath = path.Join(localDataDir, filename)
 )
 
 const (
@@ -60,17 +59,31 @@ func (e *ETL) StartETL(date string) error {
 //	return nil
 //}
 
-func (e *ETL) readData(filepath string) (txs []*models.TransactionRaw, err error) {
-	pwd, _ := os.Getwd()
-	fmt.Printf("Current pwd: %s\n", pwd)
+func (e *ETL) readDataFromFile(filepath string) (txs []*models.TransactionRaw, err error) {
 	txsFile, err := os.OpenFile(filepath, os.O_RDWR|os.O_CREATE, os.ModePerm)
 	if err != nil {
-		return txs, fmt.Errorf("failed to open data file %v: %w", filename, err)
+		return txs, fmt.Errorf("failed to open data file %v: %w", filepath, err)
 	}
 	defer txsFile.Close()
 
 	if err := gocsv.UnmarshalFile(txsFile, &txs); err != nil { // Load txs from file
-		return txs, fmt.Errorf("failed to unmarshall csv file %v: %w", filename, err)
+		return txs, fmt.Errorf("failed to unmarshall csv file %v: %w", filepath, err)
+	}
+
+	return txs, nil
+}
+
+func (e *ETL) readDataFromBytes(filepath string) (txs []*models.TransactionRaw, err error) {
+	bucket := "daily-analytics"
+	txsBytes, err := e.GCPStorage.ReadFileBytes(bucket, filepath)
+	if err != nil {
+		return txs, fmt.Errorf("failed to read daily analytics file %v: %w", filepath, err)
+	}
+
+	fmt.Printf("txs from bytes: %s, binary: %v", string(txsBytes), txsBytes)
+
+	if err := gocsv.UnmarshalBytes(txsBytes, &txs); err != nil { // Load txs from file
+		return txs, fmt.Errorf("failed to unmarshall csv bytes %v: %w", filepath, err)
 	}
 
 	return txs, nil
@@ -93,7 +106,12 @@ func filterTxs(date string, txsRaw []*models.TransactionRaw) (txsFiltered []*mod
 }
 
 func (e *ETL) TransformTxs(date string) (totalVolume *cha.DailyTotalMarketVolume, volumePerProject []*cha.DailyMarketVolumePerProject, err error) {
-	txsRaw, err := e.readData(localFilepath)
+	//txsRaw, err := e.readDataFromFile(localFilepath)
+	//if err != nil {
+	//	return totalVolume, volumePerProject, fmt.Errorf("error reading transaction data: %w", err)
+	//}
+
+	txsRaw, err := e.readDataFromBytes(fmt.Sprintf("%s.csv", date))
 	if err != nil {
 		return totalVolume, volumePerProject, fmt.Errorf("error reading transaction data: %w", err)
 	}
@@ -143,11 +161,11 @@ func (e *ETL) CalculateDailyVolume(date string, txs []*models.Transaction) (tota
 }
 
 func (e *ETL) LoadTxs(totalMarketVolume *cha.DailyTotalMarketVolume, volumePerProject []*cha.DailyMarketVolumePerProject) error {
-	if err := e.Clickhouse.UploadDailyTotalVolume(totalMarketVolume); err != nil {
+	if err := e.Clickhouse.CreateDailyTotalVolume(totalMarketVolume); err != nil {
 		return fmt.Errorf("failed to upload daily total market volume: %w", err)
 	}
 
-	if err := e.Clickhouse.UploadDailyVolumePerProject(volumePerProject); err != nil {
+	if err := e.Clickhouse.CreateDailyVolumePerProject(volumePerProject); err != nil {
 		return fmt.Errorf("failed to upload daily total market volume: %w", err)
 	}
 	return nil

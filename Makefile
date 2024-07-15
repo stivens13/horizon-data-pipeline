@@ -1,7 +1,12 @@
 
-run:
-	go run app/*.go
+#run:
+#	go run app/*.go
 
-run-all:
-	rm fs/errors/* || true
+
+run: cleanup compose-up
+
+compose-up:
 	docker compose up --build
+
+cleanup:
+	rm fs/volumes/clickhouse/errors/* || true

@@ -17,10 +17,11 @@ func main() {
 	}
 	fmt.Printf("Connected to clickhouse successfully")
 
-	storage := gcp_gateway.NewGCPStorageMock()
+	//storage := gcp_gateway.NewGCPStorageMock()
+	storage := gcp_gateway.GCPStorage{}
 
 	date := "20240415"
-	ETL := etl.NewETL(storage, clickhouseRepo)
+	ETL := etl.NewETL(&storage, clickhouseRepo)
 	if err := ETL.StartETL(date); err != nil {
 		log.Fatalf("failed to perform ETL: %v", err)
 	}
