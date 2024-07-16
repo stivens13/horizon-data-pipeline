@@ -3,28 +3,42 @@ package main
 import (
 	"fmt"
 	"github.com/stivens13/horizon-data-pipeline/app/config"
-	"github.com/stivens13/horizon-data-pipeline/app/services/clickhouse_analytics"
+	chanalytics "github.com/stivens13/horizon-data-pipeline/app/services/clickhouse_analytics"
+	currency "github.com/stivens13/horizon-data-pipeline/app/services/currency_tracker/usecase"
 	"github.com/stivens13/horizon-data-pipeline/app/services/etl"
-	gcp_gateway "github.com/stivens13/horizon-data-pipeline/app/services/gcp-gateway"
+	gcs "github.com/stivens13/horizon-data-pipeline/app/services/gcstorage/usecase"
 	"log"
 )
 
-func main() {
-	cfg := config.InitConfig()
-	clickhouseRepo := clickhouse_analytics.NewClickhouseRepository(cfg.ClickhouseConfig)
-	if err := clickhouseRepo.DB.Exec("SHOW USERS;").Error; err != nil {
-		log.Fatalf("Error running clickhouse query: %v", err)
+type Services struct {
+	Clickhouse *chanalytics.ClickhouseRepository
+	GCStorage  *gcs.GCSInteractor
+	Currency   *currency.CurrencyInteractor
+	ETL        *etl.ETL
+}
+
+func InitServices(c *config.Config) *Services {
+	clickhouse := chanalytics.NewClickhouseRepository(c.ClickhouseConfig)
+	gcStorage := gcs.NewGCSInteractor(c.GCSConfig)
+	return &Services{
+		Clickhouse: clickhouse,
+		GCStorage:  gcStorage,
+		Currency:   currency.NewCurrencyInteractor(gcStorage),
+		ETL:        etl.NewETL(gcStorage, clickhouse),
 	}
-	fmt.Printf("Connected to clickhouse successfully")
+}
 
-	//storage := gcp_gateway.NewGCPStorageMock()
-	storage := gcp_gateway.GCPStorage{}
+func main() {
+	fmt.Println("ETL application starts, initializing services...")
+	cfg := config.InitConfig()
+	services := InitServices(cfg)
 
-	date := "20240415"
-	ETL := etl.NewETL(&storage, clickhouseRepo)
-	if err := ETL.StartETL(date); err != nil {
+	fmt.Println("Start ETL Sequence")
+	date := "2024-04-15"
+	if err := services.ETL.StartETL(date); err != nil {
 		log.Fatalf("failed to perform ETL: %v", err)
 	}
+	fmt.Println("ETL Sequence Complete")
 
 	return
 }

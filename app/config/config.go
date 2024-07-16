@@ -9,14 +9,19 @@ import (
 
 var clickhouseDsnFormat = "clickhouse://%s:%s@%s:%s/%s?dial_timeout=10s&read_timeout=20s"
 
-//var Cfg *Config
+var Cfg *Config
 
 type Config struct {
-	GCPStorageClient *GCPStorageClient
+	GCSConfig        *GCSConfig
 	ClickhouseConfig *ClickhouseConfig
 }
 
-type GCPStorageClient struct {
+type GCSConfig struct {
+	DailyTxsBucket            string
+	CurrencyRegistryBucket    string
+	CurrencyRegistryFilename  string
+	TrackedCurrenciesFilename string
+	DailyCurrencyPricesBucket string
 }
 
 type ClickhouseConfig struct {
@@ -37,10 +42,15 @@ func InitConfig() *Config {
 			log.Fatal("Error loading clickhouse.env file")
 		}
 	}
-	gcp := &GCPStorageClient{}
 
-	return &Config{
-		GCPStorageClient: gcp,
+	Cfg = &Config{
+		GCSConfig: &GCSConfig{
+			DailyTxsBucket:            os.Getenv("GCS_DAILY_TXS_BUCKET"),
+			DailyCurrencyPricesBucket: os.Getenv("DAILY_CURRENCY_PRICES_BUCKET"),
+			CurrencyRegistryBucket:    os.Getenv("CURRENCY_REGISTRY_BUCKET"),
+			CurrencyRegistryFilename:  os.Getenv("CURRENCY_REGISTRY_FILENAME"),
+			TrackedCurrenciesFilename: os.Getenv("TRACKED_CURRENCIES_FILENAME"),
+		},
 		ClickhouseConfig: &ClickhouseConfig{
 			User:     os.Getenv("CLICKHOUSE_USER"),
 			Password: os.Getenv("CLICKHOUSE_PASSWORD"),
@@ -49,4 +59,6 @@ func InitConfig() *Config {
 			Database: os.Getenv("CLICKHOUSE_DATABASE"),
 		},
 	}
+
+	return Cfg
 }
