@@ -1,67 +1,35 @@
-package currency_tracker
+package main
 
 import (
-	"encoding/json"
-	"github.com/stivens13/horizon-data-pipeline/app/services/models"
-	"net/http"
+	"context"
+	usecase "github.com/stivens13/horizon-data-pipeline/app/services/currency_tracker/usecase"
+	gcp_gateway "github.com/stivens13/horizon-data-pipeline/app/services/gcp-gateway/repository"
+	"log"
 )
 
-type CurrencyTracker struct {
-}
-
-var SymbolToID = map[string]string{}
-var CurrencyInUSDByID = map[string]float64{}
-
-// PriceResponse represents the price response from the CoinGecko API
-//type PriceResponse map[string]map[string]float64
-
-//func FetchCoinHistory() {
-//	cgClient := goingecko.NewClient(nil, os.Getenv("COINGECKO_API_KEY"), false)
-//	defer cgClient.Close()
-//	cgClient.CoinsIdHistory()
-//	data, err := cgClient.CoinsId("bitcoin", true, true, true, false, false, false)
-//	if err != nil {
-//		fmt.Print("Somethig went wrong...")
-//		return
-//	}
-//	fmt.Printf("Bitcoin price is: %f$", data.MarketData.CurrentPrice.Usd)
+//type CurrencyTracker struct {
 //}
 
-// TODO: implement actual fetch
-func FetchCurrencyData(id string) {
-	CurrencyInUSDByID[id] = 1.0
-}
+func main() {
 
-func GetCurrencyDailyValueInUSD(symbol string) float64 {
-	// check if SymbolToID is populated, otherwise call FetchCoins to populate it
-	if _, ok := SymbolToID[symbol]; !ok {
-		FetchCoins()
-	}
+	usecase := usecase.NewCurrencyInteractor(&gcp_gateway.GCStorageRepository{})
 
-	id := SymbolToID[symbol]
-
-	if _, ok := CurrencyInUSDByID[id]; !ok {
-		FetchCurrencyData(id)
-	}
-
-	return CurrencyInUSDByID[id]
-}
-
-// Fetch All Coins Data
-func FetchCoins() (coins []models.Coin, err error) {
-	resp, err := http.Get("https://api.coingecko.com/api/v3/coins/list")
+	ctx := context.Background()
+	date := "2024-04-15"
+	err := usecase.UpdateCurrencyRegistry()
 	if err != nil {
-		return coins, err
-	}
-	defer resp.Body.Close()
-
-	if err := json.NewDecoder(resp.Body).Decode(&coins); err != nil {
-		return coins, err
+		log.Fatalf("Error fetching coins: %v", err)
 	}
 
-	for _, coin := range coins {
-		SymbolToID[coin.Symbol] = coin.ID
-	}
+	//symbols := createSymbolToAddressWithID(coins)
+	//
+	//clientsFile, err := os.OpenFile("currency_map.csv", os.O_RDWR|os.O_CREATE, os.ModePerm)
+	//if err != nil {
+	//	panic(err)
+	//}
+	//defer clientsFile.Close()
+	//if err := gocsv.MarshalFile(&symbols, clientsFile); err != nil {
+	//	panic(err)
+	//}
 
-	return coins, nil
 }
