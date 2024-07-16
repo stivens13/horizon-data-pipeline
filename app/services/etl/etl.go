@@ -2,38 +2,34 @@ package etl
 
 import (
 	"fmt"
-	"github.com/gocarina/gocsv"
 	"github.com/google/martian/v3/log"
 	cha "github.com/stivens13/horizon-data-pipeline/app/services/clickhouse_analytics"
-	"github.com/stivens13/horizon-data-pipeline/app/services/currency_tracker"
-	gcp_gateway "github.com/stivens13/horizon-data-pipeline/app/services/gcp-gateway"
+	currencyusecase "github.com/stivens13/horizon-data-pipeline/app/services/currency_tracker/usecase"
+	gcs "github.com/stivens13/horizon-data-pipeline/app/services/gcstorage/usecase"
+	"github.com/stivens13/horizon-data-pipeline/app/tools/helper"
+
 	"github.com/stivens13/horizon-data-pipeline/app/services/models"
-	"os"
+	"github.com/stivens13/horizon-data-pipeline/app/tools/constants"
 )
 
 type ETL struct {
-	GCPStorage gcp_gateway.Storage
-	Clickhouse *cha.ClickhouseRepository
-	//CurrencyTracker *currency
+	GCStorage           *gcs.GCSInteractor
+	Clickhouse          *cha.ClickhouseRepository
+	Currency            *currencyusecase.CurrencyInteractor
+	CurrencyUSDRegistry map[string]float64
 }
 
-func NewETL(gcpStorage gcp_gateway.Storage, clickhouseClient *cha.ClickhouseRepository) *ETL {
+func NewETL(
+	gcpStorage *gcs.GCSInteractor,
+	clickhouseClient *cha.ClickhouseRepository,
+	currencyInteractor *currencyusecase.CurrencyInteractor,
+) *ETL {
 	return &ETL{
-		GCPStorage: gcpStorage,
+		GCStorage:  gcpStorage,
 		Clickhouse: clickhouseClient,
+		Currency:   currencyInteractor,
 	}
 }
-
-var (
-// filename      = "sample_data.csv"
-// bucket        = ""
-// localDataDir  = "data/"
-// localFilepath = path.Join(localDataDir, filename)
-)
-
-const (
-	dateKeyLayout = "20060102"
-)
 
 func (e *ETL) StartETL(date string) error {
 	//if err := e.ExtractTxs(date); err != nil {
@@ -45,73 +41,51 @@ func (e *ETL) StartETL(date string) error {
 		return fmt.Errorf("failed to process daily transactions into daily volumes: %w", err)
 	}
 
-	if err = e.LoadTxs(totalVolume, volumePerProject); err != nil {
+	if err = e.LoadTxsToAnalytics(totalVolume, volumePerProject); err != nil {
 		return fmt.Errorf("failed to load daily volumes to analytics storage: %w", err)
 	}
 
 	return nil
 }
 
-//func (e *ETL) ExtractTxs(date string) error {
-//	if err := e.GCPStorage.DownloadFile(bucket, filename, localDataDir+filename); err != nil {
-//		return fmt.Errorf("error downloading data from GCS: %w", err)
-//	}
-//	return nil
-//}
+func (e *ETL) GetCurrencyUSDRegistry() (CurrencyUSDRegistry map[string]float64, err error) {
+	return CurrencyUSDRegistry, fmt.Errorf("not implemented")
+}
 
-func (e *ETL) readDataFromFile(filepath string) (txs []*models.TransactionRaw, err error) {
-	txsFile, err := os.OpenFile(filepath, os.O_RDWR|os.O_CREATE, os.ModePerm)
+func (e *ETL) PopulateCurrencyUSDRegistry() error {
+	var err error
+	e.CurrencyUSDRegistry, err = e.GetCurrencyUSDRegistry()
 	if err != nil {
-		return txs, fmt.Errorf("failed to open data file %v: %w", filepath, err)
-	}
-	defer txsFile.Close()
-
-	if err := gocsv.UnmarshalFile(txsFile, &txs); err != nil { // Load txs from file
-		return txs, fmt.Errorf("failed to unmarshall csv file %v: %w", filepath, err)
+		return fmt.Errorf("failed to fetch CurrencyInteractor USD registry: %w", err)
 	}
 
-	return txs, nil
+	return nil
 }
 
-func (e *ETL) readDataFromBytes(filepath string) (txs []*models.TransactionRaw, err error) {
-	bucket := "daily-analytics"
-	txsBytes, err := e.GCPStorage.ReadFileBytes(bucket, filepath)
+func (e *ETL) GetCurrencyValueInUSD(coinID string) float64 {
+	// TODO add proper map checks
+	return e.CurrencyUSDRegistry[coinID]
+}
+
+func (e *ETL) ExtractData(date string) (txs []*models.TransactionRaw, dailyPrices models.DailyPrices, err error) {
+	txs, err = e.GCStorage.GetDailyTxs(date)
 	if err != nil {
-		return txs, fmt.Errorf("failed to read daily analytics file %v: %w", filepath, err)
+		return txs, dailyPrices, fmt.Errorf("failed to read daily analytics file for date %s: %w", date, err)
 	}
 
-	fmt.Printf("txs from bytes: %s, binary: %v", string(txsBytes), txsBytes)
-
-	if err := gocsv.UnmarshalBytes(txsBytes, &txs); err != nil { // Load txs from file
-		return txs, fmt.Errorf("failed to unmarshall csv bytes %v: %w", filepath, err)
+	if dailyPrices, err := e.GCStorage.GetDailyPrices(date); err != nil {
+		return txs, dailyPrices, fmt.Errorf("failed to read daily prices for date %s: %w", date, err)
 	}
 
-	return txs, nil
+	return txs, dailyPrices, nil
 }
 
-func filterTxs(date string, txsRaw []*models.TransactionRaw) (txsFiltered []*models.Transaction, invalidTxsCount int32) {
-
-	for _, txRaw := range txsRaw {
-		txDate := txRaw.Timestamp.Format(dateKeyLayout)
-		if date != txDate {
-			invalidTxsCount += 1
-			log.Errorf("invalid transaction reported, processing date: %s and tx date: %s, tx details: %+v", date, txDate, txRaw)
-			continue
-		}
-
-		txsFiltered = append(txsFiltered, txRaw.ToTransaction())
-	}
-
-	return txsFiltered, invalidTxsCount
-}
-
-func (e *ETL) TransformTxs(date string) (totalVolume *cha.DailyTotalMarketVolume, volumePerProject []*cha.DailyMarketVolumePerProject, err error) {
-	//txsRaw, err := e.readDataFromFile(localFilepath)
-	//if err != nil {
-	//	return totalVolume, volumePerProject, fmt.Errorf("error reading transaction data: %w", err)
-	//}
-
-	txsRaw, err := e.readDataFromBytes(fmt.Sprintf("%s.csv", date))
+func (e *ETL) TransformTxs(date string) (
+	totalVolume *cha.DailyTotalMarketVolume,
+	volumePerProject []*cha.DailyMarketVolumePerProject,
+	err error,
+) {
+	txsRaw, _, err := e.ExtractData(helper.CSVFileDate(date))
 	if err != nil {
 		return totalVolume, volumePerProject, fmt.Errorf("error reading transaction data: %w", err)
 	}
@@ -128,27 +102,33 @@ func (e *ETL) TransformTxs(date string) (totalVolume *cha.DailyTotalMarketVolume
 	totalVolumeUSD, totalTxs, volumePerProject = e.CalculateDailyVolume(date, txs)
 
 	totalVolume = &cha.DailyTotalMarketVolume{
-		Date:              date,
-		TransactionAmount: totalTxs,
-		TotalVolume:       totalVolumeUSD,
+		Date:               date,
+		TransactionsAmount: totalTxs,
+		TotalVolumeUSD:     totalVolumeUSD,
 	}
 
 	return totalVolume, volumePerProject, nil
 }
 
-func (e *ETL) CalculateDailyVolume(date string, txs []*models.Transaction) (totalVolumeUSD float64, totalTxs int64, volumePerProject []*cha.DailyMarketVolumePerProject) {
+func (e *ETL) CalculateDailyVolume(date string, txs []*models.Transaction) (
+	totalVolumeUSD float64,
+	totalTxs int64,
+	volumePerProject []*cha.DailyMarketVolumePerProject,
+) {
 	volumePerProjectMap := map[string]*cha.DailyMarketVolumePerProject{}
 	for _, tx := range txs {
-		txUSDValue := tx.CurrencyValue * currency_tracker.GetCurrencyDailyValueInUSD(tx.CurrencySymbol)
+		txUSDValue := tx.CurrencyValue * e.GetCurrencyValueInUSD(tx.CurrencySymbol)
 		if _, ok := volumePerProjectMap[tx.CurrencySymbol]; !ok {
 			volumePerProjectMap[tx.ProjectID] = &cha.DailyMarketVolumePerProject{
-				Date:              date,
-				ProjectID:         tx.ProjectID,
-				TransactionAmount: 0,
-				TotalVolume:       float64(0),
+				Date:               date,
+				ProjectID:          tx.ProjectID,
+				TransactionsAmount: int64(0),
+				TotalVolumeUSD:     float64(0),
 			}
 		}
-		volumePerProjectMap[tx.ProjectID].TotalVolume += txUSDValue
+		project := volumePerProjectMap[tx.ProjectID]
+		project.AddToVolume(txUSDValue)
+		project.IncrementTxsAmount()
 		totalVolumeUSD += txUSDValue
 		totalTxs += 1
 	}
@@ -160,7 +140,10 @@ func (e *ETL) CalculateDailyVolume(date string, txs []*models.Transaction) (tota
 	return totalVolumeUSD, totalTxs, volumePerProject
 }
 
-func (e *ETL) LoadTxs(totalMarketVolume *cha.DailyTotalMarketVolume, volumePerProject []*cha.DailyMarketVolumePerProject) error {
+func (e *ETL) LoadTxsToAnalytics(
+	totalMarketVolume *cha.DailyTotalMarketVolume,
+	volumePerProject []*cha.DailyMarketVolumePerProject,
+) error {
 	if err := e.Clickhouse.CreateDailyTotalVolume(totalMarketVolume); err != nil {
 		return fmt.Errorf("failed to upload daily total market volume: %w", err)
 	}
@@ -170,3 +153,46 @@ func (e *ETL) LoadTxs(totalMarketVolume *cha.DailyTotalMarketVolume, volumePerPr
 	}
 	return nil
 }
+
+func filterTxs(
+	date string,
+	txsRaw []*models.TransactionRaw,
+) (
+	txsFiltered []*models.Transaction,
+	invalidTxsCount int32,
+) {
+
+	for _, txRaw := range txsRaw {
+		txDate := txRaw.Timestamp.Format(constants.DateKeyLayout)
+		if date != txDate {
+			invalidTxsCount += 1
+			log.Errorf("invalid transaction reported, processing date: %s and tx date: %s, tx details: %+v", date, txDate, txRaw)
+			continue
+		}
+
+		txsFiltered = append(txsFiltered, txRaw.ToTransaction())
+	}
+
+	return txsFiltered, invalidTxsCount
+}
+
+//func (e *ETL) readDataFromFile(filepath string) (txs []*models.TransactionRaw, err error) {
+//	txsFile, err := os.OpenFile(filepath, os.O_RDWR|os.O_CREATE, os.ModePerm)
+//	if err != nil {
+//		return txs, fmt.Errorf("failed to open data file %v: %w", filepath, err)
+//	}
+//	defer txsFile.Close()
+//
+//	if err := gocsv.UnmarshalFile(txsFile, &txs); err != nil { // Load txs from file
+//		return txs, fmt.Errorf("failed to unmarshall csv file %v: %w", filepath, err)
+//	}
+//
+//	return txs, nil
+//}
+
+//func (e *ETL) ExtractTxs(date string) error {
+//	if err := e.GCStorageRepository.DownloadFile(bucket, filename, localDataDir+filename); err != nil {
+//		return fmt.Errorf("error downloading data from GCS: %w", err)
+//	}
+//	return nil
+//}
