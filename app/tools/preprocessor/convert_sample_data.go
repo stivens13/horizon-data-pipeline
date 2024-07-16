@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/gocarina/gocsv"
 	"github.com/stivens13/horizon-data-pipeline/app/services/models"
+	"github.com/stivens13/horizon-data-pipeline/app/tools/constants"
+	"github.com/stivens13/horizon-data-pipeline/app/tools/helper"
 	"log"
 	"os"
 	"path"
@@ -13,7 +15,6 @@ var (
 	sampleDataFilename = "sample_data.csv"
 	dataPath           = "data/"
 	sampleDataFilepath = path.Join(dataPath, sampleDataFilename)
-	dateKeyLayout      = "20060102"
 )
 
 func main() {
@@ -23,20 +24,26 @@ func main() {
 	}
 
 	txsByDate := map[string][]*models.TransactionRaw{}
+	txsByAddress := map[string]map[string]bool{}
 
 	for _, tx := range txs {
-		fmt.Println(tx.Props.String())
-		fmt.Println(tx.Nums.String())
-		txDate := tx.Timestamp.Format(dateKeyLayout)
+		txDate := tx.Timestamp.Format(constants.DateKeyLayout)
 		if _, ok := txsByDate[txDate]; !ok {
 			txsByDate[txDate] = []*models.TransactionRaw{}
 		}
-
 		txsByDate[txDate] = append(txsByDate[txDate], tx)
+
+		if _, ok := txsByAddress[tx.Props.CurrencyAddress]; !ok {
+			txsByAddress[tx.Props.CurrencyAddress] = map[string]bool{}
+		}
+		txsByAddress[tx.Props.CurrencyAddress][tx.Props.CurrencySymbol] = true
+	}
+	for key, value := range txsByAddress {
+		fmt.Printf("%v: %v\n", key, value)
 	}
 
 	for key, txsPerDay := range txsByDate {
-		newFilename := fmt.Sprintf("%s.csv", key)
+		newFilename := helper.CSVFileDate(key)
 		newFilepath := path.Join(dataPath, newFilename)
 		newTxsPerDayFile, err := os.OpenFile(newFilepath, os.O_RDWR|os.O_CREATE, os.ModePerm)
 		if err != nil {
