@@ -31,7 +31,7 @@ func NewClickhouseRepository(chConfig *config.ClickhouseConfig) *ClickhouseRepos
 			std_ck.CompressionLZ4,
 			1,
 		},
-		Debug: true,
+		Debug: false,
 	})
 	clickhouseDB, err := gorm.Open(ch_driver.New(
 		ch_driver.Config{Conn: sqlDB}))
@@ -50,5 +50,8 @@ func (cr *ClickhouseRepository) CreateDailyTotalVolume(dailyTotalVolume *DailyTo
 }
 
 func (cr *ClickhouseRepository) CreateDailyVolumePerProject(dailyVolumePerProject []*DailyMarketVolumePerProject) error {
-	return fmt.Errorf("not implemented yet")
+	if err := cr.DB.Create(&dailyVolumePerProject).Error; err != nil {
+		return fmt.Errorf("failed to create Daily Volume Per Project: %v", err)
+	}
+	return nil
 }
