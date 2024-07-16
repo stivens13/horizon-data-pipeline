@@ -9,14 +9,15 @@ import (
 
 // Transaction represents minimum required data about a transaction
 type Transaction struct {
-	Timestamp      DateTime `json:"ts"`
-	Event          string   `json:"event"`
-	ProjectID      string   `json:"project_id"`
-	CurrencySymbol string   `json:"currency_symbol"`
-	CurrencyValue  float64  `json:"currency_value"`
+	Timestamp       DateTime `json:"ts"`
+	Event           string   `json:"event"`
+	ProjectID       string   `json:"project_id"`
+	CurrencySymbol  string   `json:"currency_symbol"`
+	CurrencyAddress string   `json:"currency_address"`
+	CurrencyValue   float64  `json:"currency_value"`
 }
 
-// TransactionRaw represents a single raw transaction data state stored on GCP Storage
+// TransactionRaw represents a single raw transaction data state stored on GCP GCS
 type TransactionRaw struct {
 	App              string   `json:"app" csv:"app"`
 	Timestamp        DateTime `json:"ts" csv:"ts"`
@@ -43,11 +44,12 @@ func (tr *TransactionRaw) ToTransaction() *Transaction {
 		fmt.Printf("failed to convert currency value to float: %w", err)
 	}
 	return &Transaction{
-		Timestamp:      tr.Timestamp,
-		Event:          tr.Event,
-		ProjectID:      tr.ProjectID,
-		CurrencySymbol: tr.Props.CurrencySymbol,
-		CurrencyValue:  currencyValue,
+		Timestamp:       tr.Timestamp,
+		Event:           tr.Event,
+		ProjectID:       tr.ProjectID,
+		CurrencySymbol:  tr.Props.CurrencySymbol,
+		CurrencyAddress: tr.Props.CurrencyAddress,
+		CurrencyValue:   currencyValue,
 	}
 }
 
