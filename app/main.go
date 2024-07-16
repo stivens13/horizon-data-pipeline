@@ -11,20 +11,21 @@ import (
 )
 
 type Services struct {
-	Clickhouse *chanalytics.ClickhouseRepository
-	GCStorage  *gcs.GCSInteractor
-	Currency   *currency.CurrencyInteractor
-	ETL        *etl.ETL
+	Clickhouse         *chanalytics.ClickhouseRepository
+	GCSInteractor      *gcs.GCSInteractor
+	CurrencyInteractor *currency.CurrencyInteractor
+	ETL                *etl.ETL
 }
 
 func InitServices(c *config.Config) *Services {
 	clickhouse := chanalytics.NewClickhouseRepository(c.ClickhouseConfig)
-	gcStorage := gcs.NewGCSInteractor(c.GCSConfig)
+	GCSInteractor := gcs.NewGCSInteractor(c.GCSConfig)
+	currencyInteractor := currency.NewCurrencyInteractor(GCSInteractor)
 	return &Services{
-		Clickhouse: clickhouse,
-		GCStorage:  gcStorage,
-		Currency:   currency.NewCurrencyInteractor(gcStorage),
-		ETL:        etl.NewETL(gcStorage, clickhouse),
+		Clickhouse:         clickhouse,
+		GCSInteractor:      GCSInteractor,
+		CurrencyInteractor: currencyInteractor,
+		ETL:                etl.NewETL(GCSInteractor, clickhouse, currencyInteractor),
 	}
 }
 
