@@ -2,27 +2,27 @@ package models
 
 type RegistryMap map[string]Platforms
 
-type Registry struct {
-	//Data []RegistryData
-	Symbol           string    `json:"symbol" csv:"symbol"`
-	PlatformsWithIds Platforms `json:"platforms_with_ids" csv:"platforms_with_ids"`
-}
-
-type RegistryData struct {
-	Symbol           string    `json:"symbol" csv:"symbol"`
-	PlatformsWithIds Platforms `json:"platforms_with_ids" csv:"platforms_with_ids"`
-}
-
-func (r *Registry) ToRegistryMap() (rm *RegistryMap) {
-	rm = &RegistryMap{}
-	return &RegistryMap{}
-}
-
-func ToRegistryMap(registry []Registry) (rm RegistryMap) {
-	rm = RegistryMap{}
-	for _, r := range registry {
-		rm[r.Symbol] = r.PlatformsWithIds
+func (rm *RegistryMap) ToRegistryView() (rv RegistryView) {
+	for key, val := range *rm {
+		rv.Data = append(rv.Data, &Registry{key, val})
 	}
 
+	return rv
+}
+
+type RegistryView struct {
+	Data []*Registry
+}
+
+func (rv *RegistryView) ToRegistryMap() (rm RegistryMap) {
+	rm = RegistryMap{}
+	for _, r := range rv.Data {
+		rm[r.Symbol] = r.PlatformsWithIds
+	}
 	return rm
+}
+
+type Registry struct {
+	Symbol           string    `json:"symbol" csv:"symbol"`
+	PlatformsWithIds Platforms `json:"platforms_with_ids" csv:"platforms_with_ids"`
 }

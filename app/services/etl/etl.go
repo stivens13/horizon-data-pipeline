@@ -30,7 +30,6 @@ func NewETL(
 }
 
 func (e *ETL) StartETL(date string) error {
-
 	txs, dailyPrices, err := e.ExtractData(date)
 	if err != nil {
 		return fmt.Errorf("failed extracting transaction data: %w", err)
@@ -49,7 +48,7 @@ func (e *ETL) StartETL(date string) error {
 }
 
 func (e *ETL) ExtractData(date string) (txs []*models.Transaction, dailyPrices models.DailyPrices, err error) {
-	var txsRaw []*models.TransactionRaw
+	var txsRaw models.TransactionsRawView
 	if txsRaw, err = e.GCStorage.GetDailyTxs(date); err != nil {
 		return txs, dailyPrices, fmt.Errorf("failed to read daily transactions file for date %s: %w", date, err)
 	}
@@ -92,9 +91,20 @@ func (e *ETL) LoadAnalytics(
 	return nil
 }
 
-func (e *ETL) PreprocessTxs(date string, txsRaw []*models.TransactionRaw, dailyPrices models.DailyPrices) (txs []*models.Transaction, prices models.DailyPrices, err error) {
-	var invalidTxsCount int64
-	txs, invalidTxsCount = filterTxs(date, txsRaw)
+func (e *ETL) PreprocessTxs(
+	date string,
+	txsRaw models.TransactionsRawView,
+	dailyPrices models.DailyPrices,
+) (
+	txs []*models.Transaction,
+	prices models.DailyPrices,
+	err error,
+) {
+	var (
+		symbolMap       models.TxsSymbolMap
+		invalidTxsCount int64
+	)
+	txs, invalidTxsCount, symbolMap = filterTxs(date, txsRaw)
 	if invalidTxsCount != 0 {
 		log.Errorf("invalid transactions count: %d", invalidTxsCount)
 	}
@@ -103,11 +113,11 @@ func (e *ETL) PreprocessTxs(date string, txsRaw []*models.TransactionRaw, dailyP
 		return txs, dailyPrices, fmt.Errorf("no transactions to process")
 	}
 
-	var untracked map[string]*models.Transaction
-	for _, tx := range txs {
-		if _, ok := dailyPrices[tx.Symbol()]; !ok {
-			if _, ok := untracked[tx.Symbol()]; ok {
-				untracked[tx.Symbol()] = tx
+	var untracked models.TxsSymbolMap
+	for key := range symbolMap {
+		if _, ok := dailyPrices[key]; !ok {
+			if _, ok := untracked[key]; ok {
+				untracked[key] = symbolMap[key]
 			}
 		}
 	}
@@ -130,16 +140,15 @@ func (e *ETL) PreprocessTxs(date string, txsRaw []*models.TransactionRaw, dailyP
 	return txs, dailyPrices, nil
 }
 
-func (e *ETL) GetCurrencyUSDRegistry() (CurrencyUSDRegistry map[string]float64, err error) {
-	return CurrencyUSDRegistry, fmt.Errorf("not implemented")
-}
-
-func (e *ETL) GetCurrencyValueInUSD(coinID string) float64 {
-	// TODO add proper map checks
-	return e.CurrencyUSDRegistry[coinID]
-}
-
-func (e *ETL) CalculateDailyVolume(date string, txs []*models.Transaction, prices models.DailyPrices) (totalVolumeUSD float64, totalTxs int64, volumePerProject []*models.DailyProjectVolume) {
+func (e *ETL) CalculateDailyVolume(
+	date string,
+	txs []*models.Transaction,
+	prices models.DailyPrices,
+) (
+	totalVolumeUSD float64,
+	totalTxs int64,
+	volumePerProject []*models.DailyProjectVolume,
+) {
 	volumePerProjectMap := map[string]*models.DailyProjectVolume{}
 	for _, tx := range txs {
 		symbol := tx.Symbol()
@@ -173,12 +182,12 @@ func (e *ETL) CalculateDailyVolume(date string, txs []*models.Transaction, price
 	return totalVolumeUSD, totalTxs, volumePerProject
 }
 
-func filterTxs(date string, txsRaw []*models.TransactionRaw) (
+func filterTxs(date string, txsRaw models.TransactionsRawView) (
 	txsFiltered []*models.Transaction,
 	invalidTxsCount int64,
+	symbolMap models.TxsSymbolMap,
 ) {
-
-	for _, tx := range txsRaw {
+	for _, tx := range txsRaw.Data {
 		txDate := tx.Timestamp.Format(constants.DateKeyLayout)
 		if date != txDate {
 			invalidTxsCount += 1
@@ -194,5 +203,5 @@ func filterTxs(date string, txsRaw []*models.TransactionRaw) (
 		txsFiltered = append(txsFiltered, tx.ToTransaction())
 	}
 
-	return txsFiltered, invalidTxsCount
+	return txsFiltered, invalidTxsCount, symbolMap
 }

@@ -8,6 +8,8 @@ import (
 	"strings"
 )
 
+type TxsSymbolMap map[string]*Transaction
+
 // Transactions represents set of transactions with minimal fields
 type Transactions struct {
 	Data []*Transaction `json:"data"`
@@ -35,13 +37,13 @@ func (tr *Transaction) Val() float64 {
 	return tr.CurrencyValue
 }
 
-// TransactionsRaw represents set of transactions
-type TransactionsRaw struct {
+// TransactionsRawView represents set of transactions
+type TransactionsRawView struct {
 	Data []*TransactionRaw `json:"data"`
 }
 
 // ToTransactions converts raw transaction into thin transaction with minimal required fields
-func (tr *TransactionsRaw) ToTransactions() (txs Transactions) {
+func (tr *TransactionsRawView) ToTransactions() (txs Transactions) {
 	for _, txRaw := range tr.Data {
 		txs.Data = append(txs.Data, txRaw.ToTransaction())
 	}

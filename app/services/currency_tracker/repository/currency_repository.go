@@ -7,7 +7,6 @@ import (
 	"github.com/stivens13/horizon-data-pipeline/app/config"
 	models2 "github.com/stivens13/horizon-data-pipeline/app/services/models"
 	"github.com/stivens13/horizon-data-pipeline/app/tools/constants"
-	"os"
 	"time"
 )
 
@@ -44,10 +43,9 @@ func (ctr *CurrencyRepository) FetchHistoricalData(coinID, date string) (*models
 	endTime := dateTime.UTC().Add(24 * time.Hour)
 
 	url := fmt.Sprintf(coinGeckoHistoricalChartURL, coinID, startTime.Unix(), endTime.Unix())
-	apikey := os.Getenv("COINGECKO_API_KEY")
-	fmt.Printf("url: %s, API KEY: %s\n", url)
+	fmt.Printf("url: %s", url)
 	resp, err := client.R().
-		SetHeader("Authorization", fmt.Sprintf("Bearer %s", apikey)).
+		SetHeader("Authorization", fmt.Sprintf("Bearer %s", ctr.CoingeckoAPIKey)).
 		Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch data: %w", err)

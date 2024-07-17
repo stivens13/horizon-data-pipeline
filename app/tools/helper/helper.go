@@ -11,6 +11,13 @@ func CSVFileDate(date string) string {
 	return fmt.Sprintf(constants.CSVFileMask, date)
 }
 
+func IsGenesisAddress(address string) bool {
+	if address == constants.GenesisAddress {
+		return true
+	}
+	return false
+}
+
 func UnmarshalCSVBytes[T any](bytes []byte) (out *T, err error) {
 	out = new(T)
 	if err := gocsv.UnmarshalBytes(bytes, out); err != nil {

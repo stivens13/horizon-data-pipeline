@@ -54,18 +54,18 @@ func (g *GCSInteractor) DestroyAllBuckets() error {
 	return nil
 }
 
-func (g *GCSInteractor) GetDailyTxs(date string) (txs []*models.TransactionRaw, err error) {
+func (g *GCSInteractor) GetDailyTxs(date string) (txsRaw models.TransactionsRawView, err error) {
 	var data []byte
 	filename := helper.CSVFileDate(date)
 	if data, err = g.Repo.DownloadFileToBytes(g.c.DailyTxsBucket, filename); err != nil {
-		return txs, fmt.Errorf("failed to download daily txs: %w", err)
+		return txsRaw, fmt.Errorf("failed to download daily txsRaw: %w", err)
 	}
 
-	if err = gocsv.Unmarshal(bytes.NewReader(data), &txs); err != nil {
-		return txs, fmt.Errorf("failed to unmarshal daily txs: %w", err)
+	if err = gocsv.Unmarshal(bytes.NewReader(data), &txsRaw.Data); err != nil {
+		return txsRaw, fmt.Errorf("failed to unmarshal daily txsRaw: %w", err)
 	}
 
-	return txs, nil
+	return txsRaw, nil
 }
 
 func (g *GCSInteractor) UploadDailyTxs(date string, data []byte) (err error) {

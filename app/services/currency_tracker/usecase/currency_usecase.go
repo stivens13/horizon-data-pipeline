@@ -9,6 +9,7 @@ import (
 	gcs "github.com/stivens13/horizon-data-pipeline/app/services/gcstorage/usecase"
 	"github.com/stivens13/horizon-data-pipeline/app/services/models"
 	"github.com/stivens13/horizon-data-pipeline/app/tools/constants"
+	"github.com/stivens13/horizon-data-pipeline/app/tools/helper"
 	"os"
 	"strings"
 	"time"
@@ -43,12 +44,12 @@ func (ci *CurrencyInteractor) InitializeCurrencyDataFromScratch() (err error) {
 		return fmt.Errorf("failed to get currency registry: %w", err)
 	}
 
-	var reg []models.Registry
-	if err = gocsv.UnmarshalBytes(data, &reg); err != nil {
+	var reg models.RegistryView
+	if err = gocsv.UnmarshalBytes(data, &reg.Data); err != nil {
 		return fmt.Errorf("failed to unmarshal currency registry: %w", err)
 	}
 
-	registryMap := models.ToRegistryMap(reg)
+	registryMap := reg.ToRegistryMap()
 
 	filename := os.Getenv("SEED_DATA")
 	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, os.ModePerm)
@@ -65,8 +66,8 @@ func (ci *CurrencyInteractor) InitializeCurrencyDataFromScratch() (err error) {
 	txsByDate := map[string][]*models.TransactionRaw{}
 	currencyTrackedMap := map[string]*models.TrackedCurrency{}
 
+	// group txs by date to upload seed data by day and initialize currency registry
 	for _, tx := range txs {
-		// group txs by date
 		txDate := tx.Timestamp.Format(constants.DateKeyLayout)
 		if _, ok := txsByDate[txDate]; !ok {
 			txsByDate[txDate] = []*models.TransactionRaw{}
@@ -74,31 +75,35 @@ func (ci *CurrencyInteractor) InitializeCurrencyDataFromScratch() (err error) {
 		txsByDate[txDate] = append(txsByDate[txDate], tx)
 
 		// make list of currencies to track
-		platform := tx.Props.CurrencyAddress
-		symbol := strings.ToLower(tx.Props.CurrencySymbol)
-		var currencyID string
-		if _, ok := registryMap[symbol]; !ok {
-			log.Errorf("failed to find currency with symbol %s", symbol)
+
+		// check for genesis-related transactions
+		// keep track of valid business-logic currencies only
+		if helper.IsGenesisAddress(tx.Props.CurrencyAddress) {
 			continue
 		}
 
-		if _, ok := registryMap[symbol][platform]; !ok {
-			for _, val := range registryMap[symbol] {
-				currencyID = val
+		platform := tx.Props.CurrencyAddress
+		symbol := strings.ToLower(tx.Props.CurrencySymbol)
+		var currencyID string
+
+		if _, ok := registryMap[symbol]; ok {
+			if _, ok := registryMap[symbol][platform]; ok {
+				currencyID = registryMap[symbol][platform]
 			}
+
+			// populate currencies to track by id
+			if _, ok := currencyTrackedMap[currencyID]; !ok {
+				currencyTrackedMap[currencyID] = &models.TrackedCurrency{
+					ID:       currencyID,
+					Symbol:   symbol,
+					Platform: platform,
+				}
+			}
+
+			continue
 		}
 
-		if currencyID == "" {
-			currencyID = registryMap[symbol][platform]
-		}
-
-		if _, ok := currencyTrackedMap[currencyID]; !ok {
-			currencyTrackedMap[currencyID] = &models.TrackedCurrency{
-				ID:       currencyID,
-				Symbol:   symbol,
-				Platform: platform,
-			}
-		}
+		log.Errorf("failed to find currency with symbol %s for platform %s", symbol, platform)
 	}
 
 	var currencyTracked []*models.TrackedCurrency
@@ -110,7 +115,6 @@ func (ci *CurrencyInteractor) InitializeCurrencyDataFromScratch() (err error) {
 	if data, err = gocsv.MarshalBytes(currencyTracked); err != nil {
 		return fmt.Errorf("failed to marshal currency tracked data: %w", err)
 	}
-
 	if err = ci.GCS.UploadTrackedCurrencies(data); err != nil {
 		return fmt.Errorf("failed to upload tracked currencies: %w", err)
 	}
@@ -178,14 +182,14 @@ func (ci *CurrencyInteractor) UpdateDailyCurrencyPrices(date string) (err error)
 	return nil
 }
 
-func (ci *CurrencyInteractor) UpdateCurrencyRegistry() (registry []models.Registry, err error) {
+func (ci *CurrencyInteractor) UpdateCurrencyRegistry() (registry models.RegistryView, err error) {
 	coins, err := ci.Repo.FetchAllCoinsData()
 	if err != nil {
 		return registry, fmt.Errorf("could not fetch all coins data: %w", err)
 	}
 
 	registry = ConvertCoinsToSymbolRegistry(coins)
-	currencyRegistryCSV, err := gocsv.MarshalString(&registry)
+	currencyRegistryCSV, err := gocsv.MarshalString(&registry.Data)
 	if err != nil {
 		return registry, fmt.Errorf("could not marshal symbol registry CSV: %w", err)
 	}
@@ -202,12 +206,12 @@ func (ci *CurrencyInteractor) UpdateTrackedCurrencies(untracked map[string]*mode
 	if data, err = ci.GCS.GetCurrencyRegistry(); err != nil {
 		return fmt.Errorf("could not get currency registry: %w", err)
 	}
-	var registry []models.Registry
-	if err = gocsv.UnmarshalBytes(data, &registry); err != nil {
+	var registry models.RegistryView
+	if err = gocsv.UnmarshalBytes(data, &registry.Data); err != nil {
 		return fmt.Errorf("failed to unmarshal registry data: %w", err)
 	}
 
-	registryMap := models.ToRegistryMap(registry)
+	registryMap := registry.ToRegistryMap()
 
 	data = []byte{}
 	if data, err = ci.GCS.GetTrackedCurrencies(); err != nil {
@@ -277,26 +281,21 @@ func CalculateAveragePrice(data *models.HistoricalData) (float64, error) {
 	return average, nil
 }
 
-func ConvertCoinsToSymbolRegistry(coins []models.Currency) (symbolStorage []models.Registry) {
-	SymbolToAddressWithIDMap := make(map[string]models.Platforms)
+func ConvertCoinsToSymbolRegistry(coins []models.Currency) models.RegistryView {
+	registry := models.RegistryMap{}
 	for _, coin := range coins {
-		if _, ok := SymbolToAddressWithIDMap[coin.Symbol]; !ok {
-			SymbolToAddressWithIDMap[coin.Symbol] = models.Platforms{}
+		if _, ok := registry[coin.Symbol]; !ok {
+			registry[coin.Symbol] = models.Platforms{}
 		}
+
+		// skip coins without platform
 		if len(coin.Platforms) == 0 {
-			SymbolToAddressWithIDMap[coin.Symbol]["0"] = coin.ID
 			continue
 		}
 		for _, address := range coin.Platforms {
-			SymbolToAddressWithIDMap[coin.Symbol][address] = coin.ID
+			registry[coin.Symbol][address] = coin.ID
 		}
 	}
 
-	for symbol, val := range SymbolToAddressWithIDMap {
-		symbolStorage = append(symbolStorage, models.Registry{
-			Symbol:           symbol,
-			PlatformsWithIds: val,
-		})
-	}
-	return symbolStorage
+	return registry.ToRegistryView()
 }

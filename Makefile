@@ -2,8 +2,10 @@
 #run:
 #	go run app/*.go
 
+run-etl:
+	go run app/main.go
 
-run: cleanup compose-up
+run-system: cleanup compose-up
 
 compose-up:
 	docker compose up --build
