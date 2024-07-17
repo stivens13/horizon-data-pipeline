@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/go-resty/resty/v2"
+	"github.com/stivens13/horizon-data-pipeline/app/config"
 	models2 "github.com/stivens13/horizon-data-pipeline/app/services/models"
 	"github.com/stivens13/horizon-data-pipeline/app/tools/constants"
+	"os"
 	"time"
 )
 
@@ -18,12 +20,14 @@ var (
 )
 
 type CurrencyRepository struct {
-	CGBaseURL string
+	CGBaseURL       string
+	CoingeckoAPIKey string
 }
 
-func NewCurrencyRepository() CurrencyRepository {
+func NewCurrencyRepository(c *config.CurrencyConfig) CurrencyRepository {
 	return CurrencyRepository{
-		CGBaseURL: baseURL,
+		CGBaseURL:       baseURL,
+		CoingeckoAPIKey: c.CoingeckoAPIKEY,
 	}
 }
 
@@ -37,10 +41,14 @@ func (ctr *CurrencyRepository) FetchHistoricalData(coinID, date string) (*models
 	}
 
 	startTime := dateTime.UTC().Truncate(24 * time.Hour)
-	endTime := dateTime.UTC().Add(24*time.Hour - 1*time.Second)
+	endTime := dateTime.UTC().Add(24 * time.Hour)
 
 	url := fmt.Sprintf(coinGeckoHistoricalChartURL, coinID, startTime.Unix(), endTime.Unix())
-	resp, err := client.R().Get(url)
+	apikey := os.Getenv("COINGECKO_API_KEY")
+	fmt.Printf("url: %s, API KEY: %s\n", url)
+	resp, err := client.R().
+		SetHeader("Authorization", fmt.Sprintf("Bearer %s", apikey)).
+		Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch data: %w", err)
 	}

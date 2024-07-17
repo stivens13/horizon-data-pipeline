@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	sampleDataFilename = "sample_data.csv"
+	sampleDataFilename = "seed_data.csv"
 	dataPath           = "data/"
 	sampleDataFilepath = path.Join(dataPath, sampleDataFilename)
 )
@@ -37,9 +37,6 @@ func main() {
 			txsByAddress[tx.Props.CurrencyAddress] = map[string]bool{}
 		}
 		txsByAddress[tx.Props.CurrencyAddress][tx.Props.CurrencySymbol] = true
-	}
-	for key, value := range txsByAddress {
-		fmt.Printf("%v: %v\n", key, value)
 	}
 
 	for key, txsPerDay := range txsByDate {

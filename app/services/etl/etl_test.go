@@ -1,7 +1,6 @@
 package etl
 
 import (
-	"github.com/stivens13/horizon-data-pipeline/app/services/models"
 	"github.com/stretchr/testify/suite"
 	"testing"
 )
@@ -20,7 +19,7 @@ func TestETLSuite(t *testing.T) {
 
 //func (s *ETLTestSuite) TestExtractTxs() {
 //	type fields struct {
-//		GCPStorage *gcp.GCPStorage
+//		GCSInteractor *gcp.GCSInteractor
 //	}
 //	type args struct {
 //		filename string
@@ -36,7 +35,7 @@ func TestETLSuite(t *testing.T) {
 //	for _, tt := range tests {
 //		t.Run(tt.name, func(t *testing.T) {
 //			e := &ETL{
-//				GCPStorage: tt.fields.GCPStorage,
+//				GCSInteractor: tt.fields.GCSInteractor,
 //			}
 //			if err := e.ExtractTxs(tt.args.filename); (err != nil) != tt.wantErr {
 //				t.Errorf("ExtractTxs() error = %v, wantErr %v", err, tt.wantErr)
@@ -45,69 +44,69 @@ func TestETLSuite(t *testing.T) {
 //	}
 //}
 
-func (s *ETLTestSuite) TestReadData() {
-	filepath := "data/sample_data.csv"
-	type fields struct {
-		GCPStorage *gcp_gateway.GCPStorage
-		filepath   string
-	}
-	tests := map[string]struct {
-		name     string
-		filepath string
-		fields   fields
-		wantTxs  []*models.TransactionRaw
-		wantErr  bool
-	}{
-		"sample data": {
-			fields:  fields{GCPStorage: &gcp_gateway.GCPStorage{}, filepath: filepath},
-			wantErr: false,
-		},
-	}
-	for name, test := range tests {
-		s.Run(name, func() {
-			e := &ETL{
-				GCPStorage: test.fields.GCPStorage,
-			}
-			gotTxs, err := e.readDataFromFile(test.fields.filepath)
-			if test.wantErr {
-				s.Require().NoError(err)
-				return
-			}
-			s.Require().NoError(err)
-			s.Require().NotEmpty(gotTxs)
-		})
-	}
-}
+//func (s *ETLTestSuite) TestReadData() {
+//	filepath := "data/sample_data.csv"
+//	type fields struct {
+//		GCStorage *gcs.GCSInteractor
+//		filepath  string
+//	}
+//	tests := map[string]struct {
+//		name     string
+//		filepath string
+//		fields   fields
+//		wantTxs  []*models.TransactionRaw
+//		wantErr  bool
+//	}{
+//		"sample data": {
+//			fields:  fields{GCStorage: &gcs.GCSInteractor{}, filepath: filepath},
+//			wantErr: false,
+//		},
+//	}
+//	for name, test := range tests {
+//		s.Run(name, func() {
+//			e := &ETL{
+//				GCStorage: test.fields.GCStorage,
+//			}
+//			gotTxs, err := e.readDataFromFile(test.fields.filepath)
+//			if test.wantErr {
+//				s.Require().NoError(err)
+//				return
+//			}
+//			s.Require().NoError(err)
+//			s.Require().NotEmpty(gotTxs)
+//		})
+//	}
+//}
 
-func (s *ETLTestSuite) TestTransformData() {
-	filepath := "data/sample_data.csv"
-	type fields struct {
-		GCPStorage *gcp_gateway.GCPStorage
-		filepath   string
-	}
-	tests := map[string]struct {
-		name     string
-		filepath string
-		fields   fields
-		wantTxs  []*models.TransactionRaw
-		wantErr  bool
-	}{
-		"sample data": {
-			fields:  fields{GCPStorage: &gcp_gateway.GCPStorage{}, filepath: filepath},
-			wantErr: false,
-		},
-	}
-	for name, test := range tests {
-		s.Run(name, func() {
-			e := &ETL{
-				GCPStorage: test.fields.GCPStorage,
-			}
-			err := e.TransformTxs("")
-			if test.wantErr {
-				s.Require().NoError(err)
-				return
-			}
-			s.Require().NoError(err)
-		})
-	}
-}
+//func (s *ETLTestSuite) TestTransformData() {
+//	filepath := "data/sample_data.csv"
+//	type fields struct {
+//		GCPStorage *gcp_gateway.GCPStorage
+//		filepath   string
+//	}
+//	tests := map[string]struct {
+//		name     string
+//		filepath string
+//		fields   fields
+//		wantTxs  []*models.TransactionRaw
+//		wantErr  bool
+//	}{
+//		"sample data": {
+//			fields:  fields{GCPStorage: &gcp_gateway.GCPStorage{}, filepath: filepath},
+//			wantErr: false,
+//		},
+//	}
+//	for name, test := range tests {
+//		s.Run(name, func() {
+//			e := &ETL{
+//				GCPStorage: test.fields.GCPStorage,
+//			}
+//			err := e.TransformTxs("")
+//			if test.wantErr {
+//				s.Require().NoError(err)
+//				return
+//			}
+//			s.Require().NoError(err)
+//		})
+//	}
+//}

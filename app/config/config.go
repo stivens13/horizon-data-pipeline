@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/joho/godotenv"
 	"log"
@@ -14,6 +15,11 @@ var Cfg *Config
 type Config struct {
 	GCSConfig        *GCSConfig
 	ClickhouseConfig *ClickhouseConfig
+	CurrencyConfig   *CurrencyConfig
+}
+
+type CurrencyConfig struct {
+	CoingeckoAPIKEY string
 }
 
 type GCSConfig struct {
@@ -43,9 +49,18 @@ func InitConfig() *Config {
 		}
 	}
 
+	if os.Getenv("DAILY_TXS_BUCKET") == "" {
+		if err := godotenv.Load("local.env"); err != nil {
+			log.Fatal("Error loading local.env file")
+		}
+	}
+
 	Cfg = &Config{
+		CurrencyConfig: &CurrencyConfig{
+			CoingeckoAPIKEY: os.Getenv("COINGECKO_API_KEY"),
+		},
 		GCSConfig: &GCSConfig{
-			DailyTxsBucket:            os.Getenv("GCS_DAILY_TXS_BUCKET"),
+			DailyTxsBucket:            os.Getenv("DAILY_TXS_BUCKET"),
 			DailyCurrencyPricesBucket: os.Getenv("DAILY_CURRENCY_PRICES_BUCKET"),
 			CurrencyRegistryBucket:    os.Getenv("CURRENCY_REGISTRY_BUCKET"),
 			CurrencyRegistryFilename:  os.Getenv("CURRENCY_REGISTRY_FILENAME"),
@@ -59,6 +74,9 @@ func InitConfig() *Config {
 			Database: os.Getenv("CLICKHOUSE_DATABASE"),
 		},
 	}
+
+	empJSON, _ := json.MarshalIndent(Cfg, "", "  ")
+	fmt.Println(string(empJSON))
 
 	return Cfg
 }

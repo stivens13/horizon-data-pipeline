@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS market_analytics.daily_total_market_volume
+CREATE TABLE IF NOT EXISTS market_analytics.daily_market_volume
 (
     id String,
     date DATE,

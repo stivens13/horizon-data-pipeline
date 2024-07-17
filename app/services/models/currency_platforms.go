@@ -19,9 +19,9 @@ func (p *Platforms) MarshalCSV() (string, error) {
 	return string(jsonData), nil
 }
 
-func (p *Platforms) String() string {
-	return fmt.Sprintf("%+v", p)
-}
+//func (p *Platforms) String() string {
+//	return fmt.Sprintf("%+v", p)
+//}
 
 // UnmarshalCSV converts the CSV string as internal date
 func (p *Platforms) UnmarshalCSV(csv string) (err error) {

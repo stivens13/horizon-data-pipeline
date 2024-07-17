@@ -5,7 +5,13 @@ import (
 	"fmt"
 	"github.com/gocarina/gocsv"
 	"strconv"
+	"strings"
 )
+
+// Transactions represents set of transactions with minimal fields
+type Transactions struct {
+	Data []*Transaction `json:"data"`
+}
 
 // Transaction represents minimum required data about a transaction
 type Transaction struct {
@@ -15,6 +21,31 @@ type Transaction struct {
 	CurrencySymbol  string   `json:"currency_symbol"`
 	CurrencyAddress string   `json:"currency_address"`
 	CurrencyValue   float64  `json:"currency_value"`
+}
+
+func (tr *Transaction) Symbol() string {
+	return strings.ToLower(tr.CurrencySymbol)
+}
+
+func (tr *Transaction) Platform() string {
+	return strings.ToLower(tr.CurrencyAddress)
+}
+
+func (tr *Transaction) Val() float64 {
+	return tr.CurrencyValue
+}
+
+// TransactionsRaw represents set of transactions
+type TransactionsRaw struct {
+	Data []*TransactionRaw `json:"data"`
+}
+
+// ToTransactions converts raw transaction into thin transaction with minimal required fields
+func (tr *TransactionsRaw) ToTransactions() (txs Transactions) {
+	for _, txRaw := range tr.Data {
+		txs.Data = append(txs.Data, txRaw.ToTransaction())
+	}
+	return txs
 }
 
 // TransactionRaw represents a single raw transaction data state stored on GCP GCS
@@ -38,7 +69,7 @@ type TransactionRaw struct {
 }
 
 // ToTransaction converts raw transaction into thin transaction with minimal required fields
-func (tr *TransactionRaw) ToTransaction() *Transaction {
+func (tr *TransactionRaw) ToTransaction() (tx *Transaction) {
 	currencyValue, err := strconv.ParseFloat(tr.Nums.CurrencyValueDecimal, 64)
 	if err != nil {
 		fmt.Printf("failed to convert currency value to float: %w", err)

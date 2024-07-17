@@ -11,28 +11,44 @@ import (
 )
 
 type GCSInteractor struct {
-	repo repo.StorageRepository
+	Repo repo.StorageRepository
 	c    *config.GCSConfig
 }
 
 func NewGCSInteractor(c *config.GCSConfig) *GCSInteractor {
 	return &GCSInteractor{
-		repo: repo.NewGCPStorage(c),
+		Repo: repo.NewGCSRepo(c),
 		c:    c,
 	}
 }
 
 func (g *GCSInteractor) InitializeBuckets() error {
-	if err := g.repo.CreateBucket(g.c.DailyTxsBucket); err != nil {
+	if err := g.Repo.CreateBucket(g.c.DailyTxsBucket); err != nil {
 		return fmt.Errorf("failed to create bucket: %s, %w", g.c.DailyTxsBucket, err)
 	}
 
-	if err := g.repo.CreateBucket(g.c.CurrencyRegistryBucket); err != nil {
+	if err := g.Repo.CreateBucket(g.c.CurrencyRegistryBucket); err != nil {
 		return fmt.Errorf("failed to create bucket: %s, %w", g.c.DailyTxsBucket, err)
 	}
 
-	if err := g.repo.CreateBucket(g.c.DailyCurrencyPricesBucket); err != nil {
+	if err := g.Repo.CreateBucket(g.c.DailyCurrencyPricesBucket); err != nil {
 		return fmt.Errorf("failed to create bucket: %s, %w", g.c.DailyTxsBucket, err)
+	}
+
+	return nil
+}
+
+func (g *GCSInteractor) DestroyAllBuckets() error {
+	if err := g.Repo.DeleteBucket(g.c.DailyTxsBucket); err != nil {
+		return fmt.Errorf("failed to delete bucket: %s, %w", g.c.DailyTxsBucket, err)
+	}
+
+	if err := g.Repo.DeleteBucket(g.c.CurrencyRegistryBucket); err != nil {
+		return fmt.Errorf("failed to delete bucket: %s, %w", g.c.DailyTxsBucket, err)
+	}
+
+	if err := g.Repo.DeleteBucket(g.c.DailyCurrencyPricesBucket); err != nil {
+		return fmt.Errorf("failed to delete bucket: %s, %w", g.c.DailyTxsBucket, err)
 	}
 
 	return nil
@@ -40,7 +56,8 @@ func (g *GCSInteractor) InitializeBuckets() error {
 
 func (g *GCSInteractor) GetDailyTxs(date string) (txs []*models.TransactionRaw, err error) {
 	var data []byte
-	if data, err = g.repo.DownloadFileToBytes(g.c.DailyTxsBucket, helper.CSVFileDate(date)); err != nil {
+	filename := helper.CSVFileDate(date)
+	if data, err = g.Repo.DownloadFileToBytes(g.c.DailyTxsBucket, filename); err != nil {
 		return txs, fmt.Errorf("failed to download daily txs: %w", err)
 	}
 
@@ -51,17 +68,27 @@ func (g *GCSInteractor) GetDailyTxs(date string) (txs []*models.TransactionRaw, 
 	return txs, nil
 }
 
-func (g *GCSInteractor) GetDailyPrices(date string) (
+func (g *GCSInteractor) UploadDailyTxs(date string, data []byte) (err error) {
+	filename := helper.CSVFileDate(date)
+	if err = g.Repo.UploadFileFromBytes(g.c.DailyTxsBucket, filename, data); err != nil {
+		return fmt.Errorf("failed to upload daily txs: %w", err)
+	}
+
+	return nil
+}
+
+func (g *GCSInteractor) FetchDailyPrices(date string) (
 	prices models.DailyPrices,
 	err error,
 ) {
+	prices = models.DailyPrices{}
 	var data []byte
-	if data, err = g.repo.DownloadFileToBytes(g.c.DailyCurrencyPricesBucket, helper.CSVFileDate(date)); err != nil {
+	if data, err = g.Repo.DownloadFileToBytes(g.c.DailyCurrencyPricesBucket, helper.CSVFileDate(date)); err != nil {
 		return nil, fmt.Errorf("failed to download daily prices, %w", err)
 	}
 
 	var currencyPrices []*models.CurrencyPrice
-	if err := gocsv.UnmarshalBytes(data, &prices); err != nil {
+	if err := gocsv.UnmarshalBytes(data, &currencyPrices); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal daily prices, %w", err)
 	}
 
@@ -72,28 +99,24 @@ func (g *GCSInteractor) GetDailyPrices(date string) (
 	return prices, nil
 }
 
-func (g *GCSInteractor) UpdateDailyPrices(data []byte) (err error) {
-	return g.repo.UploadFileFromBytes(g.c.DailyCurrencyPricesBucket, g.c.DailyCurrencyPricesBucket, data)
+func (g *GCSInteractor) UpdateDailyPrices(date string, data []byte) (err error) {
+	filename := helper.CSVFileDate(date)
+	return g.Repo.UploadFileFromBytes(g.c.DailyCurrencyPricesBucket, filename, data)
 }
 
 func (g *GCSInteractor) GetTrackedCurrencies() (
-	currencyRegistry []models.TrackedCurrency,
+	data []byte,
 	err error,
 ) {
-	var data []byte
-	if data, err = g.repo.DownloadFileToBytes(g.c.CurrencyRegistryBucket, g.c.TrackedCurrenciesFilename); err != nil {
-		return currencyRegistry, fmt.Errorf("failed to download currency registry, %w", err)
+	if data, err = g.Repo.DownloadFileToBytes(g.c.CurrencyRegistryBucket, g.c.TrackedCurrenciesFilename); err != nil {
+		return data, fmt.Errorf("failed to download currency registry, %w", err)
 	}
 
-	if err = gocsv.UnmarshalBytes(data, &currencyRegistry); err != nil {
-		return currencyRegistry, fmt.Errorf("failed to unmarshal currency registry, %w", err)
-	}
-
-	return currencyRegistry, nil
+	return data, nil
 }
 
-func (g *GCSInteractor) UpdateTrackedCurrencies(data []byte) (err error) {
-	if err = g.repo.UploadFileFromBytes(g.c.TrackedCurrenciesFilename, g.c.CurrencyRegistryBucket, data); err != nil {
+func (g *GCSInteractor) UploadTrackedCurrencies(data []byte) (err error) {
+	if err = g.Repo.UploadFileFromBytes(g.c.CurrencyRegistryBucket, g.c.TrackedCurrenciesFilename, data); err != nil {
 		return fmt.Errorf("failed to update tracked currencies, %w", err)
 	}
 
@@ -101,29 +124,26 @@ func (g *GCSInteractor) UpdateTrackedCurrencies(data []byte) (err error) {
 }
 
 func (g *GCSInteractor) GetCurrencyRegistry() (
-	currencyRegistryMap models.RegistryMap,
+	data []byte,
 	err error,
 ) {
-	var currencyRegistryRaw []byte
-	if currencyRegistryRaw, err = g.repo.DownloadFileToBytes(
+	if data, err = g.Repo.DownloadFileToBytes(
 		g.c.CurrencyRegistryBucket,
 		g.c.CurrencyRegistryFilename,
 	); err != nil {
-		return currencyRegistryMap, fmt.Errorf("failed to download file: %s, %w", g.c.CurrencyRegistryFilename, err)
+		return data, fmt.Errorf("failed to download file: %s, %w", g.c.CurrencyRegistryFilename, err)
 	}
 
-	var currencyRegistry []models.Registry
-	if err = gocsv.UnmarshalBytes(currencyRegistryRaw, &currencyRegistry); err != nil {
-		return currencyRegistryMap, fmt.Errorf("failed to unmarshal file: %s, %w", g.c.CurrencyRegistryFilename, err)
-	}
-
-	for _, entry := range currencyRegistry {
-		currencyRegistryMap[entry.Symbol] = entry.PlatformsWithIds
-	}
-
-	return currencyRegistryMap, nil
+	return data, nil
 }
 
 func (g *GCSInteractor) UpdateCurrencyRegistry(data []byte) error {
-	return fmt.Errorf("not implemented")
+	if err := g.Repo.UploadFileFromBytes(
+		g.c.CurrencyRegistryBucket,
+		g.c.CurrencyRegistryFilename,
+		data,
+	); err != nil {
+		return fmt.Errorf("failed to update currency registry, %w", err)
+	}
+	return nil
 }

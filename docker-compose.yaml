@@ -3,12 +3,16 @@ services:
     container_name: gcs
     image: fsouza/fake-gcs-server
     restart: unless-stopped
+#    command: -scheme http -backend filesystem -port 4443 -public-host 0.0.0.0:4443 -external-url gcs:4443
     command: -scheme http -backend filesystem -port 4443 -public-host gcs:4443 -external-url http://gcs:4443
     hostname: gcs
     ports:
       - "4443:4443"
     volumes:
       - ${PWD}/fs/volumes/gcs:/data
+      - ${PWD}/fs/volumes/gcs-storage:/storage
+    networks:
+      - storage
     healthcheck:
       test: [ 'CMD-SHELL', 'wget --no-verbose --tries=1 --spider localhost:4443/_internal/healthcheck || exit 1' ]
       interval: 30s
@@ -23,9 +27,12 @@ services:
       - ${PWD}:/etl/
     env_file:
     - clickhouse.env
-    - .env
+    - container.env
 #    hostname: etl
-    network_mode: service:clickhouse
+#    network_mode: service:clickhouse
+    networks:
+      - analytics
+      - storage
     depends_on:
       clickhouse:
         condition: service_healthy
@@ -37,6 +44,8 @@ services:
     container_name: clickhouse
     hostname: clickhouse
     env_file: clickhouse.env
+    networks:
+      - analytics
     restart: unless-stopped
     ports:
       - '8123:8123'
@@ -58,3 +67,9 @@ services:
       nofile:
         soft: 262144
         hard: 262144
+
+networks:
+  storage:
+    name: storage
+  analytics:
+    name: analytics

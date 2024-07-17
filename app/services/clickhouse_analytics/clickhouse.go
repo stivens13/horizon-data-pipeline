@@ -4,6 +4,7 @@ import (
 	"fmt"
 	std_ck "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/stivens13/horizon-data-pipeline/app/config"
+	"github.com/stivens13/horizon-data-pipeline/app/services/models"
 	ch_driver "gorm.io/driver/clickhouse"
 	"gorm.io/gorm"
 	"log"
@@ -42,14 +43,14 @@ func NewClickhouseRepository(chConfig *config.ClickhouseConfig) *ClickhouseRepos
 	return &ClickhouseRepository{DB: clickhouseDB}
 }
 
-func (cr *ClickhouseRepository) CreateDailyTotalVolume(dailyTotalVolume *DailyTotalMarketVolume) error {
+func (cr *ClickhouseRepository) CreateDailyTotalVolume(dailyTotalVolume *models.DailyMarketVolume) error {
 	if err := cr.DB.Create(&dailyTotalVolume).Error; err != nil {
 		return fmt.Errorf("failed to create Daily Total Volume: %v", err)
 	}
 	return nil
 }
 
-func (cr *ClickhouseRepository) CreateDailyVolumePerProject(dailyVolumePerProject []*DailyMarketVolumePerProject) error {
+func (cr *ClickhouseRepository) CreateDailyVolumePerProject(dailyVolumePerProject []*models.DailyProjectVolume) error {
 	if err := cr.DB.Create(&dailyVolumePerProject).Error; err != nil {
 		return fmt.Errorf("failed to create Daily Volume Per Project: %v", err)
 	}

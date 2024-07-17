@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS market_analytics.daily_market_volume_per_project
+CREATE TABLE IF NOT EXISTS market_analytics.daily_project_volume
 (
     id String,
     project_id String,

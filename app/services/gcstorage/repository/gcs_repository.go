@@ -1,7 +1,6 @@
 package gcs_repo
 
 import (
-	"bytes"
 	"cloud.google.com/go/storage"
 	"context"
 	"errors"
@@ -18,7 +17,7 @@ type GCSRepository struct {
 	c *config.GCSConfig
 }
 
-func NewGCPStorage(c *config.GCSConfig) *GCSRepository {
+func NewGCSRepo(c *config.GCSConfig) *GCSRepository {
 	return &GCSRepository{
 		c: c,
 	}
@@ -145,17 +144,21 @@ func (s *GCSRepository) UploadFileFromBytes(bucket string, object string, data [
 
 	b := client.Bucket(bucket)
 	o := b.Object(object)
+	// Check if the object exists
+	if _, err := o.Attrs(ctx); errors.Is(err, storage.ErrObjectNotExist) {
+	} else if err != nil {
+		return fmt.Errorf("failed to get object attributes: %v", err)
+	} else {
+		if err := s.DeleteFile(bucket, object); err != nil {
+			return fmt.Errorf("failed to delete object %s: %v", object, err)
+		}
+	}
 	writer := o.NewWriter(ctx)
 	defer func() {
 		if err := writer.Close(); err != nil {
 			log.Errorf("failed to close writer: %v", err)
 		}
 	}()
-
-	buf := bytes.NewBuffer(data)
-	if _, err = io.Copy(writer, buf); err != nil {
-		return fmt.Errorf("failed to copy data: %w", err)
-	}
 
 	if _, err := writer.Write(data); err != nil {
 		return fmt.Errorf("failed to write data to GCS: %v", err)
@@ -223,6 +226,34 @@ func (s *GCSRepository) DownloadFile(bucket, object, destination string) error {
 
 	if err = f.Close(); err != nil {
 		return fmt.Errorf("f.Close: %v", err)
+	}
+
+	return nil
+}
+
+func (s *GCSRepository) DeleteFile(bucket string, object string) error {
+	ctx := context.Background()
+	client, err := storage.NewClient(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to create GCP StorageRepository client: %v", err)
+	}
+	defer func() {
+		if err := client.Close(); err != nil {
+			log.Errorf("failed to close GCP StorageRepository client: %v", err)
+		}
+	}()
+
+	b := client.Bucket(bucket)
+	o := b.Object(object)
+
+	if _, err := o.Attrs(ctx); errors.Is(err, storage.ErrObjectNotExist) {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("failed to get object attributes: %v", err)
+	}
+
+	if err := o.Delete(ctx); err != nil {
+		return fmt.Errorf("failed to delete object: %v", err)
 	}
 
 	return nil
