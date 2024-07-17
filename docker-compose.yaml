@@ -9,7 +9,7 @@ services:
     ports:
       - "4443:4443"
     volumes:
-      - ${PWD}/fs/volumes/gcs:/data
+#      - ${PWD}/fs/volumes/gcs:/data # uncomment to initialize ETL without using Coingecko API
       - ${PWD}/fs/volumes/gcs-storage:/storage
     networks:
       - storage
@@ -23,13 +23,9 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: etl
-    volumes:
-      - ${PWD}:/etl/
     env_file:
     - clickhouse.env
     - container.env
-#    hostname: etl
-#    network_mode: service:clickhouse
     networks:
       - analytics
       - storage
@@ -38,7 +34,6 @@ services:
         condition: service_healthy
       gcs:
         condition: service_healthy
-    command: sleep infinity
   clickhouse:
     image: clickhouse/clickhouse-server:24.6.2.17-alpine
     container_name: clickhouse

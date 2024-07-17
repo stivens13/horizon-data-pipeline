@@ -1,11 +1,7 @@
+start-etl: cleanup compose-up
 
-#run:
-#	go run app/*.go
-
-run-etl:
-	go run app/main.go
-
-run-system: cleanup compose-up
+start-etl-container-only:
+	docker compose up etl --build
 
 compose-up:
 	docker compose up --build
