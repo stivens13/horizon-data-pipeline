@@ -16,134 +16,17 @@ import (
 )
 
 type CurrencyInteractor struct {
-	Repo repo.CurrencyRepository
-	GCS  *gcs.GCSInteractor
+	LimitRateFlag bool
+	Repo          repo.CurrencyRepository
+	GCS           *gcs.GCSInteractor
 }
 
 func NewCurrencyInteractor(c *config.CurrencyConfig, storage *gcs.GCSInteractor) *CurrencyInteractor {
 	return &CurrencyInteractor{
-		Repo: repo.NewCurrencyRepository(c),
-		GCS:  storage,
+		Repo:          repo.NewCurrencyRepository(c),
+		GCS:           storage,
+		LimitRateFlag: c.LimitRateFlag,
 	}
-}
-
-func (ci *CurrencyInteractor) InitializeCurrencyDataFromScratch() (err error) {
-	if err := ci.GCS.DestroyAllBuckets(); err != nil {
-		return fmt.Errorf("failed to destroy all buckets: %w", err)
-	}
-
-	if err := ci.GCS.InitializeBuckets(); err != nil {
-		return fmt.Errorf("failed to create buckets: %w", err)
-	}
-
-	if _, err = ci.UpdateCurrencyRegistry(); err != nil {
-		return fmt.Errorf("failed to create buckets: %w", err)
-	}
-
-	var data []byte
-	if data, err = ci.GCS.GetCurrencyRegistry(); err != nil {
-		return fmt.Errorf("failed to get currency registry: %w", err)
-	}
-
-	var reg models.RegistryView
-	if err = gocsv.UnmarshalBytes(data, &reg.Data); err != nil {
-		return fmt.Errorf("failed to unmarshal currency registry: %w", err)
-	}
-
-	registryMap := reg.ToRegistryMap()
-
-	filename := os.Getenv("SEED_DATA")
-	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, os.ModePerm)
-	if err != nil {
-		return fmt.Errorf("failed to open seed data: %w", err)
-	}
-	defer file.Close()
-
-	var txs models.TransactionsRawView
-	if err := gocsv.UnmarshalFile(file, &txs.Data); err != nil { // Load txs from file
-		return fmt.Errorf("failed to unmarshal seed data: %w", err)
-	}
-
-	txsByDate, currencyTrackedMap := ProcessSeedData(txs, registryMap)
-
-	var currencyTracked []*models.TrackedCurrency
-	for _, currency := range currencyTrackedMap {
-		currencyTracked = append(currencyTracked, currency)
-	}
-
-	data = []byte{}
-	if data, err = gocsv.MarshalBytes(currencyTracked); err != nil {
-		return fmt.Errorf("failed to marshal currency tracked data: %w", err)
-	}
-
-	if err = ci.GCS.UploadTrackedCurrencies(data); err != nil {
-		return fmt.Errorf("failed to upload tracked currencies: %w", err)
-	}
-
-	for key, txsPerDay := range txsByDate {
-		date := key
-		var data []byte
-		if data, err = gocsv.MarshalBytes(txsPerDay.Data); err != nil {
-			return fmt.Errorf("failed to marshal transactions: %w", err)
-		}
-		if err := ci.GCS.UploadDailyTxs(date, data); err != nil {
-			return fmt.Errorf("failed to marshal transactions: %w", err)
-		}
-		if err := ci.UpdateDailyCurrencyPrices(date); err != nil {
-			return fmt.Errorf("failed to update daily prices: %w", err)
-		}
-	}
-
-	return nil
-}
-
-func ProcessSeedData(txs models.TransactionsRawView, registry models.RegistryMap) (
-	txsByDate map[string]*models.TransactionsRawView,
-	currencyTrackedMap map[string]*models.TrackedCurrency,
-) {
-	txsByDate = make(map[string]*models.TransactionsRawView)
-	currencyTrackedMap = make(map[string]*models.TrackedCurrency)
-	// ** group txs by date to upload seed data by day and initialize currency registry ** //
-	for _, tx := range txs.Data {
-		txDate := tx.Timestamp.Format(constants.DateKeyLayout)
-		if _, ok := txsByDate[txDate]; !ok {
-			txsByDate[txDate] = &models.TransactionsRawView{}
-		}
-		txsByDate[txDate].Data = append(txsByDate[txDate].Data, tx)
-
-		// **** make list of currencies to track **** //
-
-		// check for genesis-related transactions
-		// keep track of valid business-logic currencies only
-		if helper.IsGenesisAddress(tx.Props.CurrencyAddress) {
-			continue
-		}
-
-		platform := tx.Props.CurrencyAddress
-		symbol := strings.ToLower(tx.Props.CurrencySymbol)
-		var currencyID string
-
-		if _, ok := registry[symbol]; ok {
-			if _, ok := registry[symbol][platform]; ok {
-				currencyID = registry[symbol][platform]
-			}
-
-			// populate currencies to track by id
-			if _, ok := currencyTrackedMap[currencyID]; !ok {
-				currencyTrackedMap[currencyID] = &models.TrackedCurrency{
-					ID:       currencyID,
-					Symbol:   symbol,
-					Platform: platform,
-				}
-			}
-
-			continue
-		}
-
-		log.Errorf("failed to find currency with symbol %s for platform %s", symbol, platform)
-	}
-
-	return txsByDate, currencyTrackedMap
 }
 
 func (ci *CurrencyInteractor) UpdateDailyCurrencyPrices(date string) (err error) {
@@ -169,9 +52,11 @@ func (ci *CurrencyInteractor) UpdateDailyCurrencyPrices(date string) (err error)
 			log.Errorf("no data available for coin: %s, platform: %s", coin.ID, coin.Platform)
 			continue
 		}
-		sleepTime := 20
-		fmt.Printf("sleep for %d seconds to not bust API limis\n", sleepTime)
-		time.Sleep(20 * time.Second)
+		if ci.LimitRateFlag {
+			sleepTime := 30
+			fmt.Printf("sleep for %d seconds after a Coingecko request to not bust Coingecko API limis\n", sleepTime)
+			time.Sleep(30 * time.Second)
+		}
 
 		var priceUSD float64
 		if priceUSD, err = CalculateAveragePrice(historicalData); err != nil {
@@ -308,4 +193,123 @@ func ConvertCoinsToSymbolRegistry(coins []models.Currency) models.RegistryView {
 	}
 
 	return registry.ToRegistryView()
+}
+
+func (ci *CurrencyInteractor) InitializeCurrencyDataFromScratch() (err error) {
+	if err := ci.GCS.DestroyAllBuckets(); err != nil {
+		return fmt.Errorf("failed to destroy all buckets: %w", err)
+	}
+
+	if err := ci.GCS.InitializeBuckets(); err != nil {
+		return fmt.Errorf("failed to create buckets: %w", err)
+	}
+
+	if _, err = ci.UpdateCurrencyRegistry(); err != nil {
+		return fmt.Errorf("failed to update currency registry: %w", err)
+	}
+
+	var data []byte
+	if data, err = ci.GCS.GetCurrencyRegistry(); err != nil {
+		return fmt.Errorf("failed to get currency registry: %w", err)
+	}
+
+	var reg models.RegistryView
+	if err = gocsv.UnmarshalBytes(data, &reg.Data); err != nil {
+		return fmt.Errorf("failed to unmarshal currency registry: %w", err)
+	}
+
+	registryMap := reg.ToRegistryMap()
+
+	filename := os.Getenv("SEED_DATA")
+	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("failed to open seed data: %w", err)
+	}
+	defer file.Close()
+
+	var txs models.TransactionsRawView
+	if err := gocsv.UnmarshalFile(file, &txs.Data); err != nil { // Load txs from file
+		return fmt.Errorf("failed to unmarshal seed data: %w", err)
+	}
+
+	txsByDate, currencyTrackedMap := ProcessSeedData(txs, registryMap)
+
+	var currencyTracked []*models.TrackedCurrency
+	for _, currency := range currencyTrackedMap {
+		currencyTracked = append(currencyTracked, currency)
+	}
+
+	data = []byte{}
+	if data, err = gocsv.MarshalBytes(currencyTracked); err != nil {
+		return fmt.Errorf("failed to marshal currency tracked data: %w", err)
+	}
+
+	if err = ci.GCS.UploadTrackedCurrencies(data); err != nil {
+		return fmt.Errorf("failed to upload tracked currencies: %w", err)
+	}
+
+	for key, txsPerDay := range txsByDate {
+		date := key
+		var data []byte
+		if data, err = gocsv.MarshalBytes(txsPerDay.Data); err != nil {
+			return fmt.Errorf("failed to marshal transactions: %w", err)
+		}
+		if err := ci.GCS.UploadDailyTxs(date, data); err != nil {
+			return fmt.Errorf("failed to marshal transactions: %w", err)
+		}
+		if err := ci.UpdateDailyCurrencyPrices(date); err != nil {
+			return fmt.Errorf("failed to update daily prices: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func ProcessSeedData(txs models.TransactionsRawView, registry models.RegistryMap) (
+	txsByDate map[string]*models.TransactionsRawView,
+	currencyTrackedMap map[string]*models.TrackedCurrency,
+) {
+	txsByDate = make(map[string]*models.TransactionsRawView)
+	currencyTrackedMap = make(map[string]*models.TrackedCurrency)
+	// ** group txs by date to upload seed data by day and initialize currency registry ** //
+	for _, tx := range txs.Data {
+		txDate := tx.Timestamp.Format(constants.DateKeyLayout)
+		if _, ok := txsByDate[txDate]; !ok {
+			txsByDate[txDate] = &models.TransactionsRawView{}
+		}
+		txsByDate[txDate].Data = append(txsByDate[txDate].Data, tx)
+
+		// **** make list of currencies to track **** //
+
+		// check for genesis-related transactions
+		// keep track of valid business-logic currencies only
+		if helper.IsGenesisAddress(tx.Props.CurrencyAddress) {
+			continue
+		}
+
+		platform := tx.Props.CurrencyAddress
+		symbol := strings.ToLower(tx.Props.CurrencySymbol)
+		var currencyID string
+
+		if _, ok := registry[symbol]; ok {
+			if _, ok := registry[symbol][platform]; ok {
+				currencyID = registry[symbol][platform]
+			}
+
+			// populate currencies to track by id
+			if _, ok := currencyTrackedMap[currencyID]; !ok {
+				currencyTrackedMap[currencyID] = &models.TrackedCurrency{
+					ID:       currencyID,
+					Symbol:   symbol,
+					Platform: platform,
+				}
+			}
+
+			continue
+		}
+
+		log.Errorf("failed to find currency with symbol %s for platform %s", symbol, platform)
+	}
+
+	return txsByDate, currencyTrackedMap
 }

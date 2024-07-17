@@ -8,6 +8,7 @@ import (
 	"github.com/stivens13/horizon-data-pipeline/app/services/etl"
 	gcs "github.com/stivens13/horizon-data-pipeline/app/services/gcstorage/usecase"
 	"log"
+	"os"
 )
 
 type Services struct {
@@ -29,17 +30,24 @@ func InitServices(c *config.Config) *Services {
 	}
 }
 
+func InitState(c *config.AppDriverConfig, services *Services) {
+	if c.InitFromScratch {
+		fmt.Println("Initializing State From Scratch")
+		if err := services.CurrencyInteractor.InitializeCurrencyDataFromScratch(); err != nil {
+			log.Fatal(err)
+		}
+	}
+}
+
 func main() {
 	fmt.Println("ETL application starts, initializing services...")
 	cfg := config.InitConfig()
 	services := InitServices(cfg)
 
-	if err := services.CurrencyInteractor.InitializeCurrencyDataFromScratch(); err != nil {
-		log.Fatal(err)
-	}
+	InitState(cfg.AppDriverConfig, services)
 
 	fmt.Println("Start ETL Sequence")
-	date := "2024-04-01"
+	date := os.Getenv("ETL_DATE")
 	if err := services.ETL.StartETL(date); err != nil {
 		log.Fatalf("failed to perform ETL: %v", err)
 	}

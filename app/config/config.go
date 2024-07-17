@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/joho/godotenv"
+	"github.com/stivens13/horizon-data-pipeline/app/tools/helper"
 	"log"
 	"os"
 )
@@ -16,10 +17,12 @@ type Config struct {
 	GCSConfig        *GCSConfig
 	ClickhouseConfig *ClickhouseConfig
 	CurrencyConfig   *CurrencyConfig
+	AppDriverConfig  *AppDriverConfig
 }
 
 type CurrencyConfig struct {
-	CoingeckoAPIKEY string
+	CoingeckoAPIKEY *string
+	LimitRateFlag   bool
 }
 
 type GCSConfig struct {
@@ -36,6 +39,10 @@ type ClickhouseConfig struct {
 	Host     string
 	Port     string
 	Database string
+}
+
+type AppDriverConfig struct {
+	InitFromScratch bool
 }
 
 func (ch *ClickhouseConfig) DSN() string {
@@ -56,9 +63,6 @@ func InitConfig() *Config {
 	}
 
 	Cfg = &Config{
-		CurrencyConfig: &CurrencyConfig{
-			CoingeckoAPIKEY: os.Getenv("COINGECKO_API_KEY"),
-		},
 		GCSConfig: &GCSConfig{
 			DailyTxsBucket:            os.Getenv("DAILY_TXS_BUCKET"),
 			DailyCurrencyPricesBucket: os.Getenv("DAILY_CURRENCY_PRICES_BUCKET"),
@@ -73,10 +77,19 @@ func InitConfig() *Config {
 			Port:     os.Getenv("CLICKHOUSE_TCP_PORT"),
 			Database: os.Getenv("CLICKHOUSE_DATABASE"),
 		},
+		AppDriverConfig: &AppDriverConfig{
+			InitFromScratch: os.Getenv("INIT_FROM_SCRATCH") == "true",
+		},
 	}
 
 	empJSON, _ := json.MarshalIndent(Cfg, "", "  ")
 	fmt.Println(string(empJSON))
+
+	// initialize CurrencyConfig after logging to prevent API Key leakage
+	Cfg.CurrencyConfig = &CurrencyConfig{
+		CoingeckoAPIKEY: helper.ToPtrStr(os.Getenv("COINGECKO_API_KEY")),
+		LimitRateFlag:   os.Getenv("COINGECKO_LIMIT_RATE") == "true",
+	}
 
 	return Cfg
 }

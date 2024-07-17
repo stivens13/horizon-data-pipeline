@@ -20,7 +20,7 @@ var (
 
 type CurrencyRepository struct {
 	CGBaseURL       string
-	CoingeckoAPIKey string
+	CoingeckoAPIKey *string
 }
 
 func NewCurrencyRepository(c *config.CurrencyConfig) CurrencyRepository {
@@ -43,9 +43,8 @@ func (ctr *CurrencyRepository) FetchHistoricalData(coinID, date string) (*models
 	endTime := dateTime.UTC().Add(24 * time.Hour)
 
 	url := fmt.Sprintf(coinGeckoHistoricalChartURL, coinID, startTime.Unix(), endTime.Unix())
-	fmt.Printf("url: %s", url)
 	resp, err := client.R().
-		SetHeader("Authorization", fmt.Sprintf("Bearer %s", ctr.CoingeckoAPIKey)).
+		SetHeader("Authorization", fmt.Sprintf("Bearer %s", *ctr.CoingeckoAPIKey)).
 		Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch data: %w", err)

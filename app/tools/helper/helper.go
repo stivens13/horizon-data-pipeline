@@ -18,6 +18,10 @@ func IsGenesisAddress(address string) bool {
 	return false
 }
 
+func ToPtrStr(s string) *string {
+	return &s
+}
+
 func UnmarshalCSVBytes[T any](bytes []byte) (out *T, err error) {
 	out = new(T)
 	if err := gocsv.UnmarshalBytes(bytes, out); err != nil {
