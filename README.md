@@ -1,16 +1,10 @@
-# Horizon Transaction Data Pipeline
+<div style="text-align: center;">
+<h1>Horizon Transaction Data Pipeline</h1>
+</div>
 
 ![HorizonTransactionsDataPipeline.png](data/HorizonTransactionsDataPipeline.png)
 
-# 0. Assumptions
-1. A minimalistic data pipeline is being built (note to self - overengineered a bit)
-2. Currency prices received from CoinGecko (or alternative) are valid for given market as default
-3. Every transaction from provided data represents a fulfilled/closing order - meaning that for every `"BUY_ITEMS"` and `"SELL_ITEMS"` event, there's an opposite opening order not present in this data. Hence, every recorded transaction is a fulfilled transaction and can be directly contributed to daily volume indicators
-4. Some transactions are, although recorded, invalid for ETL process. For instance `MATIC` `currencyAddress` contains `0x0000000000000000000000000000000000000000`, Genesis or Zero address used for burning tokens. Passing this data to analytics would invalidate the data down the pipeline and render results useless or worse, become misinformation
-5. In the task description, volume in USD per project was requested, but it only makes sense to aggregate total market volume for all projects as well, so that is also included
-6. Each ETL execution starts at least at 12:50am for given project requirements. Reason: Coingecko Docs: ```The last completed UTC day (00:00) is available 35 minutes after midnight on the next UTC day (00:35). The cache will always expire at 00:40 UTC```. Additional 10 minutes should be given to propagate cache invalidation for Coingecko itself and any network providers in the middle
-
-# 2. Project Description
+# 1. Project Description
 The following project is an almost fully self-contained in Docker (except for Coingecko API) ETL pipeline in Golang for extracting marketplace crypto transactions from emulated Google Cloud Storage, normalizing and aggregating market volume, and loading the result into an Analytics Engine, in this case, locally hosted Clickhouse instance
 
 ### Services & Tools Used:
@@ -48,6 +42,15 @@ The app consists of multiple services that in this case are glued together via `
       - `date`
       - `transactions_amount`
       - `total_volume_usd`
+
+# 2. Assumptions
+
+1. A minimalistic data pipeline project is being built (note to self - overengineered a bit)
+2. Currency prices received from CoinGecko (or alternative) are valid for given market as default
+3. Every transaction from provided data represents a fulfilled/closing order - meaning that for every `"BUY_ITEMS"` and `"SELL_ITEMS"` event, there's an opposite opening order not present in this data. Hence, every recorded transaction is a fulfilled transaction and can be directly contributed to daily volume indicators
+4. Some transactions are, although recorded, invalid for ETL process. For instance `MATIC` `currencyAddress` contains `0x0000000000000000000000000000000000000000`, Genesis or Zero address used for burning tokens. Passing this data to analytics would invalidate the data down the pipeline and render results useless or worse, become misinformation
+5. In the task description, volume in USD per project was requested, but it only makes sense to aggregate total market volume for all projects as well, so that is also included
+6. Each ETL execution starts at least at 12:50am for given project requirements. Reason: Coingecko Docs: ```The last completed UTC day (00:00) is available 35 minutes after midnight on the next UTC day (00:35). The cache will always expire at 00:40 UTC```. Additional 10 minutes should be given to propagate cache invalidation for Coingecko itself and any network providers in the middle
 
 # 3. Installation Process
 
