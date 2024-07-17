@@ -84,15 +84,3 @@ func (ctr *CurrencyRepository) FetchAllCoinsData() ([]models2.Currency, error) {
 
 	return coins, nil
 }
-
-//func FetchCoinHistory() {
-//	cgClient := goingecko.NewClient(nil, os.Getenv("COINGECKO_API_KEY"), false)
-//	defer cgClient.Close()
-//	cgClient.CoinsIdHistory()
-//	data, err := cgClient.CoinsId("bitcoin", true, true, true, false, false, false)
-//	if err != nil {
-//		fmt.Print("Somethig went wrong...")
-//		return
-//	}
-//	fmt.Printf("Bitcoin price is: %f$", data.MarketData.CurrentPrice.Usd)
-//}

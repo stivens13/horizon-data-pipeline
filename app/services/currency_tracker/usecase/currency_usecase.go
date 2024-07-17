@@ -39,6 +39,7 @@ func (ci *CurrencyInteractor) InitializeCurrencyDataFromScratch() (err error) {
 	if _, err = ci.UpdateCurrencyRegistry(); err != nil {
 		return fmt.Errorf("failed to create buckets: %w", err)
 	}
+
 	var data []byte
 	if data, err = ci.GCS.GetCurrencyRegistry(); err != nil {
 		return fmt.Errorf("failed to get currency registry: %w", err)
@@ -58,23 +59,59 @@ func (ci *CurrencyInteractor) InitializeCurrencyDataFromScratch() (err error) {
 	}
 	defer file.Close()
 
-	var txs []*models.TransactionRaw
-	if err := gocsv.UnmarshalFile(file, &txs); err != nil { // Load txs from file
+	var txs models.TransactionsRawView
+	if err := gocsv.UnmarshalFile(file, &txs.Data); err != nil { // Load txs from file
 		return fmt.Errorf("failed to unmarshal seed data: %w", err)
 	}
 
-	txsByDate := map[string][]*models.TransactionRaw{}
-	currencyTrackedMap := map[string]*models.TrackedCurrency{}
+	txsByDate, currencyTrackedMap := ProcessSeedData(txs, registryMap)
 
-	// group txs by date to upload seed data by day and initialize currency registry
-	for _, tx := range txs {
+	var currencyTracked []*models.TrackedCurrency
+	for _, currency := range currencyTrackedMap {
+		currencyTracked = append(currencyTracked, currency)
+	}
+
+	data = []byte{}
+	if data, err = gocsv.MarshalBytes(currencyTracked); err != nil {
+		return fmt.Errorf("failed to marshal currency tracked data: %w", err)
+	}
+
+	if err = ci.GCS.UploadTrackedCurrencies(data); err != nil {
+		return fmt.Errorf("failed to upload tracked currencies: %w", err)
+	}
+
+	for key, txsPerDay := range txsByDate {
+		date := key
+		var data []byte
+		if data, err = gocsv.MarshalBytes(txsPerDay.Data); err != nil {
+			return fmt.Errorf("failed to marshal transactions: %w", err)
+		}
+		if err := ci.GCS.UploadDailyTxs(date, data); err != nil {
+			return fmt.Errorf("failed to marshal transactions: %w", err)
+		}
+		if err := ci.UpdateDailyCurrencyPrices(date); err != nil {
+			return fmt.Errorf("failed to update daily prices: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func ProcessSeedData(txs models.TransactionsRawView, registry models.RegistryMap) (
+	txsByDate map[string]*models.TransactionsRawView,
+	currencyTrackedMap map[string]*models.TrackedCurrency,
+) {
+	txsByDate = make(map[string]*models.TransactionsRawView)
+	currencyTrackedMap = make(map[string]*models.TrackedCurrency)
+	// ** group txs by date to upload seed data by day and initialize currency registry ** //
+	for _, tx := range txs.Data {
 		txDate := tx.Timestamp.Format(constants.DateKeyLayout)
 		if _, ok := txsByDate[txDate]; !ok {
-			txsByDate[txDate] = []*models.TransactionRaw{}
+			txsByDate[txDate] = &models.TransactionsRawView{}
 		}
-		txsByDate[txDate] = append(txsByDate[txDate], tx)
+		txsByDate[txDate].Data = append(txsByDate[txDate].Data, tx)
 
-		// make list of currencies to track
+		// **** make list of currencies to track **** //
 
 		// check for genesis-related transactions
 		// keep track of valid business-logic currencies only
@@ -86,9 +123,9 @@ func (ci *CurrencyInteractor) InitializeCurrencyDataFromScratch() (err error) {
 		symbol := strings.ToLower(tx.Props.CurrencySymbol)
 		var currencyID string
 
-		if _, ok := registryMap[symbol]; ok {
-			if _, ok := registryMap[symbol][platform]; ok {
-				currencyID = registryMap[symbol][platform]
+		if _, ok := registry[symbol]; ok {
+			if _, ok := registry[symbol][platform]; ok {
+				currencyID = registry[symbol][platform]
 			}
 
 			// populate currencies to track by id
@@ -106,34 +143,7 @@ func (ci *CurrencyInteractor) InitializeCurrencyDataFromScratch() (err error) {
 		log.Errorf("failed to find currency with symbol %s for platform %s", symbol, platform)
 	}
 
-	var currencyTracked []*models.TrackedCurrency
-	for _, currency := range currencyTrackedMap {
-		currencyTracked = append(currencyTracked, currency)
-	}
-
-	data = []byte{}
-	if data, err = gocsv.MarshalBytes(currencyTracked); err != nil {
-		return fmt.Errorf("failed to marshal currency tracked data: %w", err)
-	}
-	if err = ci.GCS.UploadTrackedCurrencies(data); err != nil {
-		return fmt.Errorf("failed to upload tracked currencies: %w", err)
-	}
-
-	for key, txsPerDay := range txsByDate {
-		date := key
-		var data []byte
-		if data, err = gocsv.MarshalBytes(txsPerDay); err != nil {
-			return fmt.Errorf("failed to marshal transactions: %w", err)
-		}
-		if err := ci.GCS.UploadDailyTxs(date, data); err != nil {
-			return fmt.Errorf("failed to marshal transactions: %w", err)
-		}
-		if err := ci.UpdateDailyCurrencyPrices(date); err != nil {
-			return fmt.Errorf("failed to update daily prices: %w", err)
-		}
-	}
-
-	return nil
+	return txsByDate, currencyTrackedMap
 }
 
 func (ci *CurrencyInteractor) UpdateDailyCurrencyPrices(date string) (err error) {
